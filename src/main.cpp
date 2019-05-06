@@ -21,7 +21,7 @@ int createProcessAndStream(std::unique_ptr<ProcessStream>& process){
 		close(sockets[0]);
 		close(sockets[1]);
 		return -1;
-	}else if( pid == 0){
+	}else if( pid == 0 ){
 		close(sockets[0]);
 
 		dup2(sockets[1],0);
