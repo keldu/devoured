@@ -1,13 +1,37 @@
-#include "ProcessStream.h"
 #include <memory>
+#include <iostream>
 
 #include <sys/socket.h>
+#include <unistd.h>
+
+#include "ProcessStream.h"
 
 using dvr::ProcessStream;
 
 int createProcessAndStream(std::unique_ptr<ProcessStream>& process){
 	int sockets[2];
-	socketpair(PF_UNIX, SOCK_STREAM, AF_UNIX, sockets);
+	int rv = socketpair(PF_UNIX, SOCK_STREAM, AF_UNIX, sockets);
+	if ( rv != -1 ){
+		std::cerr<<"Failed to create socket"<<std::endl;
+		return -2;
+	}
+
+	int pid = fork();
+	if( pid == -1 ){
+		close(sockets[0]);
+		close(sockets[1]);
+		return -1;
+	}else if( pid == 0){
+		close(sockets[0]);
+
+		dup2(sockets[1],0);
+		dup2(sockets[1],1);
+
+		execlp("terraria", "terraria", NULL);
+	}else{
+		close(sockets[1]);
+		process = std::make_unique<ProcessStream>(sockets[0],pid);
+	}
 
 	return 0;
 }
