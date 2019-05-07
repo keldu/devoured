@@ -11,7 +11,7 @@ using dvr::ProcessStream;
 int createProcessAndStream(std::unique_ptr<ProcessStream>& process){
 	int sockets[2];
 	int rv = socketpair(PF_UNIX, SOCK_STREAM, AF_UNIX, sockets);
-	if ( rv != -1 ){
+	if ( rv != 0 ){
 		std::cerr<<"Failed to create socket"<<std::endl;
 		return -2;
 	}
@@ -20,7 +20,6 @@ int createProcessAndStream(std::unique_ptr<ProcessStream>& process){
 	if( pid == -1 ){
 		close(sockets[0]);
 		close(sockets[1]);
-		return -1;
 	}else if( pid == 0 ){
 		close(sockets[0]);
 
@@ -33,7 +32,7 @@ int createProcessAndStream(std::unique_ptr<ProcessStream>& process){
 		process = std::make_unique<ProcessStream>(sockets[0],pid);
 	}
 
-	return 0;
+	return pid;
 }
 
 int main(int argc, char** argv){
