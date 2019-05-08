@@ -9,9 +9,16 @@ namespace dvr {
 	public:
 		ProcessStream(int pid, std::array<int,3> fds);
 
-		int getInFD();
-		int getOutFD();
-		int getErrFD();
+		/*
+		 *	returns the file descriptor from the parent side which replaced
+		 *	stdin 0,
+		 *	stdout 1,
+		 *	stderr 2
+		 */
+		int getFD(int from_fd);
+		/*
+		 *	return the process id of the child
+		 */
 		int getPID();
 	private:
 		int process_id;
