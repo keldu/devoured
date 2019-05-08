@@ -17,4 +17,6 @@ namespace dvr {
 		int process_id;
 		std::array<int,3> file_descriptors;
 	};
+
+	int createProcessAndStream(std::unique_ptr<ProcessStream>& process_stream);
 }
