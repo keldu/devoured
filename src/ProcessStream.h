@@ -1,18 +1,20 @@
 #pragma once
 
 #include <string>
-#include <vector>
+#include <array>
 #include <memory>
 
 namespace dvr {
 	class ProcessStream{
 	public:
-		ProcessStream(int fd, int pid);
+		ProcessStream(int pid, std::array<int,3> fds);
 
-		int getFD();
+		int getInFD();
+		int getOutFD();
+		int getErrFD();
 		int getPID();
 	private:
-		int file_descriptor;
 		int process_id;
+		std::array<int,3> file_descriptors;
 	};
 }

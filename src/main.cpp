@@ -9,40 +9,64 @@
 using dvr::ProcessStream;
 
 int createProcessAndStream(std::unique_ptr<ProcessStream>& process){
-	int sockets[2];
-	int rv = socketpair(PF_UNIX, SOCK_STREAM, AF_UNIX, sockets);
-	if ( rv != 0 ){
-		std::cerr<<"Failed to create socket"<<std::endl;
-		return -2;
+	int fds[2][3];
+
+	//Creating each pipe
+	for(int8_t i = 0; i < 3; ++i){
+		int rv = pipe(fds[i]);
+		if( rv == -1 ){
+			std::cerr<<"Failed to create pipe "<<std::to_string(i)<<std::endl;
+			//Closing previously opened pipes
+			for(int8_t j = i - 1; j >= 0; --j){
+				for(int8_t k = 0; k < 2; ++k){
+				  close(fds[j][k]);
+				}
+			}
+			return -2;
+		}
 	}
 
 	int pid = fork();
 	if( pid == -1 ){
-		close(sockets[0]);
-		close(sockets[1]);
+		for(uint8_t i = 0; i < 3; ++i){
+			for(uint8_t j = 0; j < 2; ++j){
+				close(fds[i][j]);
+			}
+		}
 	}else if( pid == 0 ){
-		close(sockets[0]);
-
-		dup2(sockets[1],0);
-		dup2(sockets[1],1);
-
+		/* replaces all default streams with the following fds 
+		 * and closes the parent fds
+		 */
+		for(uint8_t i = 0; i < 3; ++i){
+			close(fds[i][0]);
+			dup2(fds[i][1],i);
+		}
+		
+		//replace the exec with a handling loop which
+		//waits for a start signal by the core loop
+		//It should be possible that specific signals are not forwarded to the service.
+		//For SIGTERM handling etc
+		//Also it should be possible that a program goes to sleep whenever possible.
 		execlp("terraria", "terraria", NULL);
 	}else{
-		close(sockets[1]);
-		process = std::make_unique<ProcessStream>(sockets[0],pid);
+		for(uint8_t i = 0; i < 3; ++i){
+			close(fds[i][1]);
+		}
+		process = std::make_unique<ProcessStream>(pid,std::array<int,3>{fds[0][0],fds[1][0],fds[2][0]});
 	}
 
 	return pid;
 }
 
+/*
+	Even though I know that copy on write is implemented for linux when executing fork
+	I still want to stay as low as possible in the stack. I will maintain a little bit
+	C style language while handling fork requests.
+*/
+
 int main(int argc, char** argv){
 
 	std::unique_ptr<ProcessStream> process;
-	/*
-		Even though I know that copy on write is implemented for linux when executing fork
-		I still want to stay as low as possible in the stack. I will maintain a little bit
-		C style language while handling fork requests.
-	*/
 	int rv = createProcessAndStream(process);
 
 	return 0;
