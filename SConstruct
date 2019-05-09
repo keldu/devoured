@@ -4,6 +4,6 @@ env=Environment()
 
 Export('env')
 
-src_list = SConscript('src/SConscript')
+obj_list = SConscript('source/SConscript')
 
-Program('devoured', src_list)
+Program('devoured', obj_list)

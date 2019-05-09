@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+
+Import('env')
+
+header_list = ['ProcessStream.h', 'ControlInterface.h']
+src_list = ['main.cpp', 'ProcessStream.cpp', 'ControlInterface.cpp']
+
+obj_list = env.Object(src_list)
+Return('obj_list')

@@ -3,6 +3,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <iostream>
+
 namespace dvr {
 	ProcessStream::ProcessStream(int pid, std::array<int,3> fds):
 		process_id{pid},
@@ -19,7 +21,7 @@ namespace dvr {
 		return file_descriptors[from_fd];
 	}
 	
-	int createProcessAndStream(std::unique_ptr<ProcessStream>& process){
+	int createProcessStream(std::unique_ptr<ProcessStream>& process){
 		int fds[2][3];
 
 		//Creating each pipe
@@ -35,6 +37,12 @@ namespace dvr {
 				}
 				return -2;
 			}
+		}
+
+		for(uint8_t i : {1,2} ){
+			int temp = fds[i][0];
+			fds[i][0] = fds[i][1];
+			fds[i][1] = temp;
 		}
 
 		int pid = fork();

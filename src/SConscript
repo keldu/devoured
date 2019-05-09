@@ -1,5 +1,0 @@
-#!/usr/bin/env python3
-
-Import('env')
-obj_list = env.Object(['main.cpp','ProcessStream.cpp'])
-Return('obj_list')

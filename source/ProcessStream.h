@@ -1,6 +1,5 @@
 #pragma once
 
-#include <string>
 #include <array>
 #include <memory>
 
@@ -15,15 +14,15 @@ namespace dvr {
 		 *	stdout 1,
 		 *	stderr 2
 		 */
-		int getFD(int from_fd);
+		int getFD(int from_fd) const;
 		/*
 		 *	return the process id of the child
 		 */
-		int getPID();
+		int getPID() const;
 	private:
 		int process_id;
 		std::array<int,3> file_descriptors;
 	};
 
-	int createProcessAndStream(std::unique_ptr<ProcessStream>& process_stream);
+	int createProcessStream(std::unique_ptr<ProcessStream>& process_stream);
 }
