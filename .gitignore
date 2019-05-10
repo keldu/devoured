@@ -4,3 +4,4 @@
 *.os
 .sconsign.dblite
 devoured
+external/

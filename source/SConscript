@@ -2,8 +2,9 @@
 
 Import('env')
 
-header_list = ['ProcessStream.h', 'ControlInterface.h']
-src_list = ['main.cpp', 'ProcessStream.cpp', 'ControlInterface.cpp']
+hdr_list = ['ProcessStream.h', 'ControlInterface.h','Config.h','Devoured.h']
+src_list = ['main.cpp', 'ProcessStream.cpp', 'ControlInterface.cpp','Config.cpp', 'Devoured.cpp']
 
 obj_list = env.Object(src_list)
-Return('obj_list')
+
+Return('obj_list','src_list','hdr_list')

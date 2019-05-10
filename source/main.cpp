@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include "ProcessStream.h"
+#include "Devoured.h"
 
 /*
 	Even though I know that copy on write is implemented for linux when executing fork
@@ -11,8 +12,9 @@
 
 int main(int argc, char** argv){
 
-	std::unique_ptr<dvr::ProcessStream> process;
-	int rv = dvr::createProcessStream(process);
+	//createContext always creates a valid pointer
+	std::unique_ptr<dvr::Devoured> devoured = dvr::createContext(argc,argv);
+	int status_code = devoured->run();
 
-	return 0;
+	return status_code;
 }
