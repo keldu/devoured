@@ -4,6 +4,8 @@ A wrapper around bad binaries, which are not handling SIGTERM properly, are cras
 This will be a service which accepts custom commands like this one  
 Sending single commands:  
 `devoured -t terraria -c "motd This is the message of the day"`  
+Send an alias command  
+`devoured -t terraria -a "motd_one"`
 Checking the status.  
 `devoured -s` or `devoured --status`  
 for an interactive shell.  
