@@ -6,7 +6,7 @@
 namespace dvr {
 	class ProcessStream{
 	public:
-		ProcessStream(int pid, std::array<int,3> fds);
+		ProcessStream(const std::string& ef, int pid, std::array<int,3> fds);
 
 		/*
 		 *	returns the file descriptor from the parent side which replaced
@@ -14,7 +14,7 @@ namespace dvr {
 		 *	stdout 1,
 		 *	stderr 2
 		 */
-		int getFD(int from_fd) const;
+		const std::array<int,3>& getFD() const;
 		/*
 		 *	return the process id of the child
 		 */
@@ -22,7 +22,8 @@ namespace dvr {
 	private:
 		int process_id;
 		std::array<int,3> file_descriptors;
+		std::string exec_file;
 	};
 
-	int createProcessStream(std::unique_ptr<ProcessStream>& process_stream);
+	int createProcessStream(const std::string& exec_file, std::unique_ptr<ProcessStream>& process_stream);
 }

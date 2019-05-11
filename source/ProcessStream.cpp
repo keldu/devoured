@@ -6,9 +6,10 @@
 #include <iostream>
 
 namespace dvr {
-	ProcessStream::ProcessStream(int pid, std::array<int,3> fds):
+	ProcessStream::ProcessStream(const std::string& ef, int pid, std::array<int,3> fds):
 		process_id{pid},
-		file_descriptors{fds}
+		file_descriptors{fds},
+		exec_file{ef}
 	{
 
 	}
@@ -17,11 +18,11 @@ namespace dvr {
 		return process_id;
 	}
 	
-	int ProcessStream::getFD(int from_fd) const {
-		return file_descriptors[from_fd];
+	const std::array<int,3>& ProcessStream::getFD() const {
+		return file_descriptors;
 	}
 	
-	int createProcessStream(std::unique_ptr<ProcessStream>& process){
+	int createProcessStream(const std::string& exec_file, std::unique_ptr<ProcessStream>& process){
 		int fds[2][3];
 
 		//Creating each pipe
@@ -71,7 +72,7 @@ namespace dvr {
 			for(uint8_t i = 0; i < 3; ++i){
 				close(fds[i][1]);
 			}
-			process = std::make_unique<ProcessStream>(pid,std::array<int,3>{fds[0][0],fds[1][0],fds[2][0]});
+			process = std::make_unique<ProcessStream>(exec_file, pid, std::array<int,3>{fds[0][0],fds[1][0],fds[2][0]});
 		}
 
 		return pid;

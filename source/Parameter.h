@@ -5,7 +5,7 @@
 
 namespace dvr {
 
-	struct Config{
+	struct Parameter{
 	public:
 
 		enum class Mode{
@@ -31,6 +31,6 @@ namespace dvr {
 		std::string target;
 	};
 
-	const Config parseConfig(int argc, char** argv);
+	const Parameter parseParams(int argc, char** argv);
 
 }

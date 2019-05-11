@@ -1,6 +1,9 @@
 #pragma once
 
 #include <memory>
+#include <unordered_set>
+
+#include "UnixSocket.h"
 
 namespace dvr {
 	class Devoured {
@@ -37,6 +40,16 @@ namespace dvr {
 
 		std::string config_path;
 		std::string target;
+	private:
+		struct Config{
+			std::string control_path;
+		};
+
+		Config readConf();
+		void setupControl(Config& conf);
+
+		std::unique_ptr<StreamAcceptor> control_acceptor;
+		std::unordered_set<Stream> control_streams;
 	};
 
 	std::unique_ptr<Devoured> createContext(int argc, char** argv);

@@ -1,6 +1,6 @@
 #include "Devoured.h"
 
-#include "Config.h"
+#include "Parameter.h"
 
 #include <iostream>
 
@@ -48,24 +48,42 @@ namespace dvr {
 	}
 
 	void ServiceDevoured::loop(){
+		Config conf = readConf();
+		setupControl(conf);
+
 		while(isActive()){
-			;
+			
+		}
+	}
+
+	ServiceDevoured::Config ServiceDevoured::readConf(){
+		Config conf;
+		conf.control_path = "/var/run/terraria";
+		return conf;
+	}
+
+	void ServiceDevoured::setupControl(ServiceDevoured::Config& conf){
+		std::unique_ptr<UnixSocketAddress> socket_address = std::make_unique<UnixSocketAddress>(conf.control_path);
+		//TODO: Check correct file path somewhere
+
+		control_acceptor = socket_address->listen();
+		if(!control_acceptor){
+			stop();
 		}
 	}
 
 	std::unique_ptr<Devoured> createContext(int argc, char** argv){
 		std::unique_ptr<Devoured> context;
 
-		const Config config = parseConfig(argc, argv);
-
+		const Parameter config = parseParams(argc, argv);
 
 		switch(config.mode){
-			case Config::Mode::INVALID:{
+			case Parameter::Mode::INVALID:{
 				std::cerr<<"Invalid Config"<<std::endl;
 				context = std::make_unique<InvalidDevoured>();
 				break;
 			}
-			case Config::Mode::SERVICE:{
+			case Parameter::Mode::SERVICE:{
 				std::cerr<<"Service Context case, but not output not ready"<<std::endl;
 				context = std::make_unique<ServiceDevoured>(config.devour.value(),config.target);
 				break;
