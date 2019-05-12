@@ -1,6 +1,6 @@
 #include "parameter.h"
 
-#include <cxxopts/cxxopts.hpp>
+#include <cxxopts.hpp>
 
 namespace dvr {
 	cxxopts::Options createOptions(Parameter& params){

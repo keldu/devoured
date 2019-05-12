@@ -13,7 +13,7 @@ Export('env')
 #0 is the obj_list
 #1 is the src_list for formatting
 #2 is the hdr_list for formatting
-SConscript('core/SConscript')
 SConscript('modules/SConscript')
+SConscript('core/SConscript')
 
 env.Program('devoured', 'main.cpp')
