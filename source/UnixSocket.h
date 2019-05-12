@@ -1,9 +1,11 @@
 #pragma once
 
 #include <memory>
+#include <set>
 
 namespace dvr {
 	class UnixSocketAddress;
+	class Stream;
 
 	class FdObserver {
 	public:
