@@ -1,6 +1,6 @@
-#include "Devoured.h"
+#include "devoured.h"
 
-#include "Parameter.h"
+#include "arguments/parameter.h"
 
 #include <iostream>
 

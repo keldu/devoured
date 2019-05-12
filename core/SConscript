@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+
+Import('env')
+
+hdr_list = ['process_stream.h', 'unix_socket.h','devoured.h']
+src_list = ['main.cpp', 'process_stream.cpp', 'unix_socket.cpp', 'devoured.cpp']
+
+obj_list = env.Object(src_list)
+
+Return('obj_list','src_list','hdr_list')

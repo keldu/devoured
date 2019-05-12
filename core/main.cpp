@@ -1,8 +1,8 @@
 #include <memory>
 #include <iostream>
 
-#include "ProcessStream.h"
-#include "Devoured.h"
+#include "process_stream.h"
+#include "devoured.h"
 
 /*
 	Even though I know that copy on write is implemented for linux when executing fork

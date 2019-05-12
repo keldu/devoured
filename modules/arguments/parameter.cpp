@@ -1,4 +1,4 @@
-#include "Parameter.h"
+#include "parameter.h"
 
 #include <cxxopts/cxxopts.hpp>
 

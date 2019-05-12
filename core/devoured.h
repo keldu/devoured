@@ -3,7 +3,7 @@
 #include <memory>
 #include <set>
 
-#include "UnixSocket.h"
+#include "unix_socket.h"
 
 namespace dvr {
 	class Devoured {
