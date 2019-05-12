@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-env=Environment(CPPPATH=['#external/static'],CXXFLAGS="-std=c++17")
+env=Environment(CPPPATH=['#external/dynamic','#external/static'],CXXFLAGS="-std=c++17")
 
 Export('env')
 
