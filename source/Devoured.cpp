@@ -58,7 +58,7 @@ namespace dvr {
 
 	ServiceDevoured::Config ServiceDevoured::readConf(){
 		Config conf;
-		conf.control_path = "/var/run/terraria";
+		conf.control_path = "terraria";
 		return conf;
 	}
 
@@ -83,7 +83,6 @@ namespace dvr {
 				break;
 			}
 			case Parameter::Mode::SERVICE:{
-				std::cerr<<"Service Context case, but not output not ready"<<std::endl;
 				context = std::make_unique<ServiceDevoured>(config.devour.value(),config.target);
 				break;
 			}

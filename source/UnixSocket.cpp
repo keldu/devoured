@@ -50,25 +50,33 @@ namespace dvr {
 	std::unique_ptr<StreamAcceptor> UnixSocketAddress::listen(){
 		file_descriptor = socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
 
+		if(file_descriptor == -1){
+			std::cerr<<"Couldn't create socket at "<<bind_address<<std::endl;
+			return nullptr;
+		}
+
+		int status;
+
 		struct ::sockaddr_un local;
 		int len;
 		strncpy(local.sun_path, bind_address.c_str(), 108);
+		local.sun_family = AF_UNIX;
 
 		struct ::stat stats;
-		int stat_ret = ::stat(local.sun_path,&stats);
+		status = ::stat(local.sun_path,&stats);
 
-		if(stat_ret >= 0){
+		if(status >= 0){
 			std::cerr<<"Socket path exists already: "<<local.sun_path<<std::endl;
-			return 0L;
+			return nullptr;
 		}
 		
 		len = strlen(local.sun_path) + sizeof(local.sun_family);
 
-		int bind_ret =::bind(file_descriptor, (struct ::sockaddr*)&local, len);
+		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, len);
 
-		if( bind_ret == -1){
+		if( status == -1){
 			std::cerr<<"Socket path is malformed: "<<local.sun_path<<std::endl;
-			return 0L;
+			return nullptr;
 		}
 
 		::listen(file_descriptor, SOMAXCONN);
