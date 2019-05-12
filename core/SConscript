@@ -4,7 +4,7 @@ Import('env')
 
 env.core_sources = []
 
-hdr_list = ['process_stream.h', 'unix_socket.h','devoured.h']
+hdr_list = ['process_stream.h', 'unix_socket.h','devoured.h','signal_handler.h']
 src_list = ['process_stream.cpp', 'unix_socket.cpp', 'devoured.cpp']
 
 env.add_source_files(env.core_sources, src_list)

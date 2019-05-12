@@ -3,6 +3,7 @@
 
 #include "core/process_stream.h"
 #include "core/devoured.h"
+#include "core/signal_handler.h"
 
 /*
 	Even though I know that copy on write is implemented for linux when executing fork
@@ -11,6 +12,7 @@
 */
 
 int main(int argc, char** argv){
+
 
 	//createContext always creates a valid pointer
 	std::unique_ptr<dvr::Devoured> devoured = dvr::createContext(argc,argv);

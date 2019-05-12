@@ -31,11 +31,13 @@ namespace dvr {
 
 	class StreamAcceptor {
 	public:
-		StreamAcceptor(UnixSocketAddress& addr);
+		StreamAcceptor(const std::string& sp, int fd);
+		~StreamAcceptor();
 
 		std::unique_ptr<Stream> accept();
 	private:
-		UnixSocketAddress* address;
+		std::string socket_path;
+		int file_descriptor;
 	};
 
 	class UnixSocketAddress {
@@ -46,8 +48,8 @@ namespace dvr {
 		std::unique_ptr<Stream> connect();
 
 		int getFD() const;
+		const std::string& getPath() const;
 	private:
-		int file_descriptor;
 		std::string bind_address;
 	};
 }

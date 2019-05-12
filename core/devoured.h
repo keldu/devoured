@@ -4,6 +4,7 @@
 #include <set>
 
 #include "unix_socket.h"
+#include "config/config.h"
 
 namespace dvr {
 	class Devoured {
@@ -41,13 +42,13 @@ namespace dvr {
 		std::string config_path;
 		std::string target;
 	private:
-		struct Config{
-			std::string control_path;
-		};
 
-		Config readConf();
-		void setupControl(Config& conf);
+		void setup();
+		void setupControlInterface();
 
+		Config config;
+
+		std::unique_ptr<UnixSocketAddress> unix_socket_address;
 		std::unique_ptr<StreamAcceptor> control_acceptor;
 		std::set<Stream> control_streams;
 	};

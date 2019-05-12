@@ -4,6 +4,7 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <errno.h>
 #include <cstring>
 
@@ -16,21 +17,27 @@ namespace dvr {
 
 	}
 
-	StreamAcceptor::StreamAcceptor(UnixSocketAddress& addr):
-		address{&addr}
+	StreamAcceptor::StreamAcceptor(const std::string& sp, int fd):
+		socket_path{sp},
+		file_descriptor{fd}
 	{
 
+	}
+
+	StreamAcceptor::~StreamAcceptor()
+	{
+		if(file_descriptor != -1){
+			unlink(socket_path.c_str());
+		}
 	}
 
 	std::unique_ptr<Stream> StreamAcceptor::accept(){
 		std::unique_ptr<Stream> stream;
 
-		int listen_fd = address->getFD();
-
 		struct ::sockaddr_storage addr;
 		socklen_t addr_len = sizeof(addr);
 
-		int accepted_fd = ::accept4(listen_fd, reinterpret_cast<struct ::sockaddr*>(&addr), &addr_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
+		int accepted_fd = ::accept4(file_descriptor, reinterpret_cast<struct ::sockaddr*>(&addr), &addr_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
 		if(accepted_fd >= 0){
 			stream = std::make_unique<Stream>(accepted_fd);
 		}else {
@@ -48,7 +55,7 @@ namespace dvr {
 	}
 
 	std::unique_ptr<StreamAcceptor> UnixSocketAddress::listen(){
-		file_descriptor = socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
+		int file_descriptor = socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
 
 		if(file_descriptor == -1){
 			std::cerr<<"Couldn't create socket at "<<bind_address<<std::endl;
@@ -81,7 +88,7 @@ namespace dvr {
 
 		::listen(file_descriptor, SOMAXCONN);
 
-		return std::make_unique<StreamAcceptor>(*this);
+		return std::make_unique<StreamAcceptor>(bind_address, file_descriptor);
 	}
 
 	std::unique_ptr<Stream> UnixSocketAddress::connect(){
@@ -89,7 +96,7 @@ namespace dvr {
 		return 0L;
 	}
 
-	int UnixSocketAddress::getFD()const{
-		return file_descriptor;
+	const std::string& UnixSocketAddress::getPath()const{
+		return bind_address;
 	}
 }

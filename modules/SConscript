@@ -9,6 +9,7 @@ env.modules_sources = []
 Export('env_modules')
 
 SConscript('arguments/SConscript')
+SConscript('config/SConscript')
 
 lib = env_modules.add_library("modules", env.modules_sources)
 env.Prepend(LIBS=[lib])

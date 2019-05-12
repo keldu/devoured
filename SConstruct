@@ -16,4 +16,4 @@ Export('env')
 SConscript('modules/SConscript')
 SConscript('core/SConscript')
 
-env.Program('devoured', 'main.cpp')
+env.Program('#bin/devoured', 'main.cpp')

@@ -4,12 +4,14 @@
 
 #include <iostream>
 
+#include "signal_handler.h"
+
 namespace dvr {
 	Devoured::Devoured(bool act, int sta):
 		active{act},
 		status{sta}
 	{
-
+		signal(SIGINT, signal_handler);
 	}
 
 	int Devoured::run(){
@@ -23,7 +25,7 @@ namespace dvr {
 	}
 
 	bool Devoured::isActive()const{
-		return active;
+		return active && (shutdown_requested != 1);
 	}
 
 	int Devoured::getStatus()const{
@@ -48,25 +50,29 @@ namespace dvr {
 	}
 
 	void ServiceDevoured::loop(){
-		Config conf = readConf();
-		setupControl(conf);
+		setup();
 
 		while(isActive()){
 			
 		}
 	}
 
-	ServiceDevoured::Config ServiceDevoured::readConf(){
-		Config conf;
-		conf.control_path = "terraria";
-		return conf;
+	void ServiceDevoured::setup(){
+		config = parseConfig(config_path);
+		setupControlInterface();
 	}
 
-	void ServiceDevoured::setupControl(ServiceDevoured::Config& conf){
-		std::unique_ptr<UnixSocketAddress> socket_address = std::make_unique<UnixSocketAddress>(conf.control_path);
+	void ServiceDevoured::setupControlInterface(){
+		std::string socket_path = config.control_iloc;
+		if(target.empty()){
+			socket_path += config.control_name;
+		}else{
+			socket_path += target;
+		}
+		unix_socket_address = std::make_unique<UnixSocketAddress>(socket_path);
 		//TODO: Check correct file path somewhere
 
-		control_acceptor = socket_address->listen();
+		control_acceptor = unix_socket_address->listen();
 		if(!control_acceptor){
 			stop();
 		}
