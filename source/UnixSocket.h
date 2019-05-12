@@ -1,9 +1,11 @@
 #pragma once
 
 #include <memory>
+#include <set>
 
 namespace dvr {
 	class UnixSocketAddress;
+	class Stream;
 
 	class FdObserver {
 	public:
@@ -12,7 +14,7 @@ namespace dvr {
 		void observe(int fd);
 		void forget(int fd);
 	private:
-		std::set<Stream*> stdout_fds;
+		std::set<Stream*> streams;
 	};
 
 	class Stream{
