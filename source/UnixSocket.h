@@ -14,7 +14,7 @@ namespace dvr {
 		void observe(int fd);
 		void forget(int fd);
 	private:
-		std::set<Stream*> stdout_fds;
+		std::set<Stream*> streams;
 	};
 
 	class Stream{

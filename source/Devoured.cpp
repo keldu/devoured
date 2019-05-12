@@ -79,7 +79,6 @@ namespace dvr {
 
 		switch(config.mode){
 			case Parameter::Mode::INVALID:{
-				std::cerr<<"Invalid Config"<<std::endl;
 				context = std::make_unique<InvalidDevoured>();
 				break;
 			}
