@@ -1,0 +1,6 @@
+[submodule "thirdparty/cpptoml"]
+	path = thirdparty/cpptoml
+	url = https://github.com/skystrife/cpptoml
+[submodule "thirdparty/cxxopts"]
+	path = thirdparty/cxxopts
+	url = https://github.com/jarro2783/cxxopts
