@@ -1,7 +1,7 @@
 #pragma once
 
 #include <memory>
-#include <unordered_set>
+#include <set>
 
 #include "UnixSocket.h"
 
@@ -49,7 +49,7 @@ namespace dvr {
 		void setupControl(Config& conf);
 
 		std::unique_ptr<StreamAcceptor> control_acceptor;
-		std::unordered_set<Stream> control_streams;
+		std::set<Stream> control_streams;
 	};
 
 	std::unique_ptr<Devoured> createContext(int argc, char** argv);
