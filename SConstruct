@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 
+#Local
+import methods
+
 env=Environment(CPPPATH=['#modules'],CXXFLAGS="-std=c++17")
+
+env.__class__.add_source_files = methods.add_source_files
+env.__class__.add_library = methods.add_library
 
 Export('env')
 
 #0 is the obj_list
 #1 is the src_list for formatting
 #2 is the hdr_list for formatting
-core_list = SConscript('core/SConscript')
-modules_list = SConscript('modules/SConscript')
+SConscript('core/SConscript')
+SConscript('modules/SConscript')
 
-program = env.Program('devoured', core_list[0])
+env.Program('devoured', 'main.cpp')
