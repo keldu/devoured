@@ -4,10 +4,13 @@
 
 namespace dvr {
 	struct Config {
-		//TODO guarantee that location is a valid folder path with a single trailing slash
-		std::string control_iloc;
-		//TODO guarantee that name has no slashes
-		std::string control_name;
+		//Flag to set/check invalid config
+		int valid = 0;
+
+		std::string control_iloc = "/tmp/devoured/";
+		std::string control_name = "default";
+
+		std::string full_path;
 	};
 
 	const Config parseConfig(const std::string& path);

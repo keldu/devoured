@@ -3,7 +3,6 @@
 
 #include "core/process_stream.h"
 #include "core/devoured.h"
-#include "core/signal_handler.h"
 
 /*
 	Even though I know that copy on write is implemented for linux when executing fork

@@ -42,7 +42,7 @@ namespace dvr {
 			stream = std::make_unique<Stream>(accepted_fd);
 		}else {
 			//TODO Error checking
-			int error = errno;
+			//int error = errno;
 		}
 
 		return stream;

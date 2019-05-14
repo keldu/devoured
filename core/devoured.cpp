@@ -80,15 +80,15 @@ namespace dvr {
 	std::unique_ptr<Devoured> createContext(int argc, char** argv){
 		std::unique_ptr<Devoured> context;
 
-		const Parameter config = parseParams(argc, argv);
+		const Parameter parameter = parseParams(argc, argv);
 
-		switch(config.mode){
+		switch(parameter.mode){
 			case Parameter::Mode::INVALID:{
 				context = std::make_unique<InvalidDevoured>();
 				break;
 			}
 			case Parameter::Mode::SERVICE:{
-				context = std::make_unique<ServiceDevoured>(config.devour.value(),config.target);
+				context = std::make_unique<ServiceDevoured>(parameter.devour.value(),parameter.target);
 				break;
 			}
 			default:{
