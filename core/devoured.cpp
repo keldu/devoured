@@ -1,9 +1,8 @@
 #include "devoured.h"
 
-#include "arguments/parameter.h"
-
 #include <iostream>
 
+#include "arguments/parameter.h"
 #include "signal_handler.h"
 
 namespace dvr {

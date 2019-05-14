@@ -11,7 +11,7 @@ Checking the status.
 for an interactive shell.  
 `devoured`, `devoured -i` or `devoured --interactive`  
 Starting the service.  
-`devoured --start-service -f config.toml`  
+`devoured -d -f config.toml -t terraria`  
 Stopping the service.  
 `devoured --stop-service -f config.toml`  
 would run the service with the specified config file.  
