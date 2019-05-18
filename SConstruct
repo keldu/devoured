@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 #Local
-import methods
+import thirdparty.methods
 
 env=Environment(CPPPATH=['#modules'],CXXFLAGS=['-std=c++17','-Wall','-Wextra','-Werror'],LIBS=['stdc++fs'])
 
