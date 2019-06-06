@@ -10,11 +10,7 @@ namespace dvr{
 		std::filesystem::path c_name{config.control_name};
 		std::filesystem::path c_iloc{config.control_iloc};
 
-
-		
 		std::filesystem::path full_path{c_iloc.string() + c_name.string()};
-
-
 	}
 
 	const Config parseConfig(const std::string& path){
