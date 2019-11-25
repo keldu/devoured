@@ -9,8 +9,6 @@ namespace dvr {
 
 		std::string control_iloc = "/tmp/devoured/";
 		std::string control_name = "default";
-
-		std::string full_path;
 	};
 
 	const Config parseConfig(const std::string& path);

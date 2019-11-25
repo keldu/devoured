@@ -1,4 +1,4 @@
-#include "unix_socket.h"
+#include "network.h"
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -10,18 +10,45 @@
 
 #include <iostream>
 
+const size_t read_buffer_size = 4096;
+
 namespace dvr {
-	Stream::Stream(int fd):
-		file_descriptor{fd}
+	FdObserver::FdObserver(EventPoll& p, int fd):
+		file_descriptor{fd},
+		poll{p}
 	{
+		poll.subscribe(*this);
+	}
+
+	FdObserver::~FdObserver(){
+		poll.unsubscribe(*this);
+	}
+
+	void EventPoll::poll(){
 
 	}
 
-	StreamAcceptor::StreamAcceptor(const std::string& sp, int fd):
-		socket_path{sp},
-		file_descriptor{fd}
-	{
+	void EventPoll:subscribe(FdObserver& obv){
+		observers.insert(std::make_pair(obv.file_descriptor, &obv));
+	}
 
+	void EventPoll::unsubscribe(FdObserver& obv){
+		observers.erase(obv.file_descriptor);
+	}
+
+	Stream::Stream(int fd, EventPoll& p, StreamCallback& call):
+		file_descriptor{fd},
+		observer{p, fd},
+		poll{p},
+	{}
+
+	StreamAcceptor::StreamAcceptor(const std::string& sp, int fd, EventPoll& p):
+		signalee{nullptr},
+		socket_path{sp},
+		file_descriptor{fd},
+		poll{p}
+	{
+		read_buffer.resize(read_buffer_size);
 	}
 
 	StreamAcceptor::~StreamAcceptor()
@@ -39,7 +66,7 @@ namespace dvr {
 
 		int accepted_fd = ::accept4(file_descriptor, reinterpret_cast<struct ::sockaddr*>(&addr), &addr_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
 		if(accepted_fd >= 0){
-			stream = std::make_unique<Stream>(accepted_fd);
+			stream = std::make_unique<Stream>(accepted_fd, poll);
 		}else {
 			//TODO Error checking
 			//int error = errno;
@@ -48,11 +75,10 @@ namespace dvr {
 		return stream;
 	}
 
-	UnixSocketAddress::UnixSocketAddress(const std::string& unix_addr):
+	UnixSocketAddress::UnixSocketAddress(EventPoll& p, const std::string& unix_addr):
+		poll{p},
 		bind_address{unix_addr}
-	{
-
-	}
+	{}
 
 	std::unique_ptr<StreamAcceptor> UnixSocketAddress::listen(){
 		int file_descriptor = socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
@@ -88,7 +114,7 @@ namespace dvr {
 
 		::listen(file_descriptor, SOMAXCONN);
 
-		return std::make_unique<StreamAcceptor>(bind_address, file_descriptor);
+		return std::make_unique<StreamAcceptor>(bind_address, file_descriptor, poll);
 	}
 
 	std::unique_ptr<Stream> UnixSocketAddress::connect(){

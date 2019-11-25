@@ -4,10 +4,8 @@
 #include <optional>
 
 namespace dvr {
-
 	struct Parameter{
 	public:
-
 		enum class Mode{
 			INVALID,
 			SERVICE,
@@ -26,9 +24,9 @@ namespace dvr {
 		bool status;
 		std::optional<std::string> alias;
 		std::optional<std::string> command;
-		std::optional<std::string> devour;
+		bool devour;
 
-		std::string target;
+		std::optional<std::string> target;
 	};
 
 	const Parameter parseParams(int argc, char** argv);

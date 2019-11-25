@@ -18,13 +18,15 @@ namespace dvr{
 		std::filesystem::path config_path{path};
 
 		std::shared_ptr<cpptoml::table> toml_table =  cpptoml::parse_file(std::filesystem::absolute(config_path).string());
-
 		{
 			auto table = toml_table->get_table("Socket");
+			if(!table){
+				table = cpptoml::make_table();
+				toml_table->insert("Socket", table);
+			}
 			config.control_name = table->get_as<std::string>("Name").value_or(config.control_name);
 			config.control_iloc = table->get_as<std::string>("Path").value_or(config.control_iloc);
 		}
-
 		return config;
 	}
 }

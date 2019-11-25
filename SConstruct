@@ -4,7 +4,7 @@
 from thirdparty import methods
 
 
-env=Environment(CPPPATH=['#modules'],CXXFLAGS=['-std=c++17','-Wall','-Wextra','-Werror'],LIBS=['stdc++fs'])
+env=Environment(CPPPATH=['#modules'],CXXFLAGS=['-std=c++17','-g','-Wall','-Wextra','-Werror'],LIBS=['stdc++fs'])
 
 env.__class__.add_source_files = methods.add_source_files
 env.__class__.add_library = methods.add_library

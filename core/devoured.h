@@ -3,7 +3,7 @@
 #include <memory>
 #include <set>
 
-#include "unix_socket.h"
+#include "network.h"
 #include "config/config.h"
 
 namespace dvr {
@@ -33,25 +33,6 @@ namespace dvr {
 		void loop();
 	};
 
-	class ServiceDevoured final : public Devoured {
-	public:
-		ServiceDevoured(const std::string& f, const std::string& t);
-	protected:
-		void loop();
-
-		std::string config_path;
-		std::string target;
-	private:
-
-		void setup();
-		void setupControlInterface();
-
-		Config config;
-
-		std::unique_ptr<UnixSocketAddress> unix_socket_address;
-		std::unique_ptr<StreamAcceptor> control_acceptor;
-		std::set<Stream> control_streams;
-	};
 
 	std::unique_ptr<Devoured> createContext(int argc, char** argv);
 }
