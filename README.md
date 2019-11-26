@@ -11,7 +11,9 @@ Checking the status.
 for an interactive shell.  
 `devoured`, `devoured -i` or `devoured --interactive`  
 Starting the service.  
-`devoured -d -f config.toml -t terraria`  
-would run the service with the specified config file.  
+`devoured -d`  
+would run the daemon.  
+The scheme how to start the services may be based on something like  
+`devoured -n -t terraria`  
 
 Currently not working, but the general layout is done. Just have to write a proper management socket for devoured.  
