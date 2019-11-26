@@ -10,9 +10,8 @@ Checking the status.
 `devoured -s` or `devoured --status`  
 for an interactive shell.  
 `devoured`, `devoured -i` or `devoured --interactive`  
-Starting the service.  
+Starting the daemon with.  
 `devoured -d`  
-would run the daemon.  
 The scheme how to start the services may be based on something like  
 `devoured -n -t terraria`  
 
