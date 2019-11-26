@@ -14,7 +14,6 @@ namespace dvr {
 
 		int run();
 	private:
-
 		bool active;
 		int status;
 	protected:
@@ -25,14 +24,5 @@ namespace dvr {
 
 		virtual void loop() = 0;
 	};
-
-	class InvalidDevoured final : public Devoured {
-	public:
-		InvalidDevoured();
-	protected:
-		void loop();
-	};
-
-
 	std::unique_ptr<Devoured> createContext(int argc, char** argv);
 }

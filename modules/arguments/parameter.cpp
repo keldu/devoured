@@ -13,6 +13,7 @@ namespace dvr {
 			("a,alias", "an aliased command", cxxopts::value<std::optional<std::string>>(params.alias))
 			("d,devour", "wrap a binary and execute it", cxxopts::value<bool>(params.devour))
 			("t,target", "name of the session", cxxopts::value<std::optional<std::string>>(params.target))
+			("n,new", "create a new devoured session", cxxopts::value<bool>(params.spawn))
 		;
 
 		return options;

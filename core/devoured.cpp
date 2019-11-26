@@ -1,7 +1,7 @@
 #include "devoured.h"
-
 #include <iostream>
 #include <chrono>
+#include <list>
 #include <thread>
 
 #include "arguments/parameter.h"
@@ -10,7 +10,7 @@
 namespace dvr {
 	class ServiceDevoured final : public Devoured {
 	private:
-		EventPoll poll;
+		Network network;
 	public:
 		ServiceDevoured(const std::string& f):
 			Devoured(true, 0),
@@ -24,9 +24,10 @@ namespace dvr {
 			setup();
 			while(isActive()){
 				std::this_thread::sleep_until(next_update);
-				next_update += std::chrono::milliseconds{100};
+				next_update += std::chrono::milliseconds{1000};
 
-
+				// Update all subsystems like network ...
+				network.poll();
 			}
 		}
 
@@ -37,24 +38,80 @@ namespace dvr {
 			
 			setupControlInterface();
 		}
+
 		void setupControlInterface(){
 			std::string socket_path = config.control_iloc;
 			socket_path += config.control_name;
 
-			unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
+			//unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
 			//TODO: Check correct file path somewhere
 
-			control_acceptor = unix_socket_address->listen();
-			if(!control_acceptor){
+			control_server = network.listen(socket_path);
+			if(!control_server){
 				stop();
 			}
 		}
 
 		Config config;
 
-		std::unique_ptr<UnixSocketAddress> unix_socket_address;
-		std::unique_ptr<StreamAcceptor> control_acceptor;
-		std::set<Stream> control_streams;
+		std::unique_ptr<Server> control_server;
+		std::list<std::unique_ptr<Connection>> control_streams;
+	};
+	
+	class InvalidDevoured final : public Devoured {
+	public:
+		InvalidDevoured():
+			Devoured(false, -1)
+		{}
+	protected:
+		void loop(){}
+	};
+
+	class SpawnDevoured final : public Devoured {
+	public:
+		SpawnDevoured():
+			Devoured(true, 0)
+		{}
+	protected:
+		void loop(){
+			while(isActive()){
+			}
+		}
+	};
+
+	class StatusDevoured final : public Devoured, public IConnectionObserver {
+	private:
+		Network network;
+	public:
+		StatusDevoured():
+			Devoured(true, 0)
+		{}
+
+		void notifyCreate(Connection& conn) override {
+			(void)conn;
+		}
+		void notifyDestroy(Connection& conn) override {
+			(void)conn;
+		}
+	protected:
+		void loop(){
+			setup();
+			while(isActive()){
+			}
+		}
+	private:
+		void setup(){
+			auto connection = network.connect("/tmp/devoured/default");
+			MessageRequest msg{
+				0,
+				static_cast<uint8_t>(Parameter::Mode::STATUS),
+				"",
+				""
+			};
+			if(!asyncWriteRequest(*connection, msg)){
+				stop();
+			}
+		}
 	};
 
 	Devoured::Devoured(bool act, int sta):
@@ -62,7 +119,6 @@ namespace dvr {
 		status{sta}
 	{
 		register_signal_handlers();
-		//signal(SIGINT, signal_handler);
 	}
 
 	int Devoured::run(){
@@ -82,14 +138,6 @@ namespace dvr {
 		return status;
 	}
 
-	InvalidDevoured::InvalidDevoured():
-		Devoured(false, -1)
-	{
-	}
-
-	void InvalidDevoured::loop(){
-	}
-
 	std::unique_ptr<Devoured> createContext(int argc, char** argv){
 		std::unique_ptr<Devoured> context;
 		const Parameter parameter = parseParams(argc, argv);
@@ -101,6 +149,14 @@ namespace dvr {
 			}
 			case Parameter::Mode::SERVICE:{
 				context = std::make_unique<ServiceDevoured>("config.toml");
+				break;
+			}
+			case Parameter::Mode::SPAWN:{
+				context = std::make_unique<SpawnDevoured>();
+				break;
+			}
+			case Parameter::Mode::STATUS: {
+				context = std::make_unique<StatusDevoured>();
 				break;
 			}
 			default:{

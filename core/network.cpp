@@ -10,9 +10,36 @@
 
 #include <iostream>
 
-const size_t read_buffer_size = 4096;
+#include <endian.h>
+
+// Don't remember the value of 2^16 - 1 so 1024 * 64 - 1 will have to do
+const size_t read_buffer_size = 1024 * 64 - 1;
+
+const uint16_t max_message_size = 4095 - 2;
+const uint16_t max_target_size = 255;
+/*
+ * So This is the rest of the max size. We have 
+ * 3 uint16_t values and
+ * 2 uint8_t values
+ * Subtrace all these and the other max sizes and you get the resulting protocol
+ * This should be guaranteed to be > 0.
+ * Check with a calculator if you change this or sth similar :)
+ */
+
+const uint16_t request_static_size = 4 * 64;
+const uint16_t max_request_content_size = max_message_size - max_target_size - request_static_size;
+// Is by coincidence the same
+const uint16_t response_static_size = 4 * 64;
+const uint16_t max_response_content_size = max_message_size - max_target_size - response_static_size;
 
 namespace dvr {
+	MessageRequest::MessageRequest(uint16_t rid_p, uint8_t type_p, const std::string& target_p, const std::string& content_p):
+		request_id{rid_p},
+		type{type_p},
+		target{target_p},
+		content{content_p}
+	{}
+
 	IFdObserver::IFdObserver(EventPoll& p, int file_d, uint8_t msk):
 		poll{p},
 		fd{file_d},
@@ -127,8 +154,34 @@ namespace dvr {
 		stream{std::move(str)}
 	{}
 
+	/*
+	 * Based on EPoll notification accept, read or write in a non blocking way
+	 * and queue reads and/or handle writes
+	 */
 	void Connection::notify(uint8_t mask){
-		(void)mask;
+		(void) mask;
+	}
+
+	void Connection::write(std::vector<uint8_t>& buffer){
+		(void) buffer;
+	}
+
+	bool Connection::hasWriteQueued() const {
+		return !write_buffer_queue.empty();
+	}
+
+	std::vector<uint8_t> Connection::grabRead(){
+		std::vector<uint8_t> front;
+		if(read_buffer_queue.empty()){
+			return front;
+		}
+		front = std::move(read_buffer_queue.front());
+		read_buffer_queue.pop();
+		return front;
+	}
+
+	bool Connection::hasReadQueued() const {
+		return !read_buffer_queue.empty();
 	}
 
 	Server::Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc):
@@ -141,10 +194,124 @@ namespace dvr {
 	}
 
 	std::unique_ptr<Stream> UnixSocketAddress::connect(){
-		return 0L;
+		
+		return nullptr;
 	}
 
 	const std::string& UnixSocketAddress::getPath()const{
 		return bind_address;
 	}
+
+	Network::Network(){
+	}
+
+	void Network::poll(){
+		ev_poll.poll();
+	}
+
+	std::unique_ptr<Server> Network::listen(const std::string& address){
+		auto unix_addr = parseUnixAddress(address);
+		if(!unix_addr){
+			return nullptr;
+		}
+		auto acceptor = unix_addr->listen();
+		if(!acceptor){
+			return nullptr;
+		}
+		return std::make_unique<Server>(ev_poll, std::move(acceptor));
+	}
+
+	std::unique_ptr<Connection> Network::connect(const std::string& address){
+		auto unix_addr = parseUnixAddress(address);
+		if(!unix_addr){
+			return nullptr;
+		}
+		auto stream = unix_addr->connect();
+		if(!stream){
+			return nullptr;
+		}
+		return std::make_unique<Connection>(ev_poll, std::move(stream));
+	}
+
+	std::unique_ptr<UnixSocketAddress> Network::parseUnixAddress(const std::string& unix_path){
+		return std::make_unique<UnixSocketAddress>(ev_poll, unix_path);
+	}
+
+	size_t deserialize(uint8_t* buffer, uint16_t& value){
+		uint16_t& buffer_value = *reinterpret_cast<uint16_t*>(buffer);
+		value = le16toh(buffer_value);
+
+		return 2;
+	}
+
+	size_t deserialize(uint8_t* buffer, std::string& value){
+		uint16_t val_size = 0;
+		size_t shift = deserialize(buffer, val_size);
+		value.resize(val_size);
+		for(size_t i = 0; i < val_size; ++i){
+			value[i] = buffer[shift+i];
+		}
+		return shift + val_size;
+	}
+
+	std::optional<MessageRequest> asyncReadRequest(Connection& connection){
+		if(connection.hasReadQueued()){
+			MessageRequest msg;
+			auto buffer = connection.grabRead();
+			if( buffer.size() >= 2 ){
+				uint16_t msg_size;
+				size_t shift = deserialize(&buffer[0], msg_size);
+				if( msg_size < max_message_size ){
+					shift += deserialize(&buffer[shift], msg.request_id);
+					msg.type = buffer[shift++];
+					shift += deserialize(&buffer[shift], msg.target);
+					if( msg.target.size() < max_target_size ){
+						shift += deserialize(&buffer[shift], msg.content);
+						if( msg.content.size() < max_request_content_size ){
+							return msg;
+						}
+					}
+				}
+			}
+		}
+		return std::nullopt;
+	}
+
+	// endian.h conversion
+	size_t serialize(uint8_t* buffer, uint16_t value){
+		uint16_t& val_buffer = *reinterpret_cast<uint16_t*>(buffer);
+		val_buffer = htole16(value);
+		return 2;
+	}
+	size_t serialize(uint8_t* buffer, const std::string& value){
+		size_t shift = serialize(buffer, static_cast<uint16_t>(value.size()));
+		for(size_t i = 0; i < value.size(); ++i){
+			buffer[shift + i] = static_cast<uint8_t>(value[i]);
+		}
+
+		return shift + value.size();
+	}
+
+	bool asyncWriteRequest(Connection& connection, const MessageRequest& request){
+		const size_t ct_size = request.content.size();
+		const size_t tg_size = request.target.size();
+		const size_t msg_size = ct_size + tg_size + request_static_size;
+
+		if( msg_size < max_message_size && ct_size < max_request_content_size && tg_size < max_target_size ){
+			std::vector<uint8_t> buffer;
+			buffer.resize(msg_size);
+
+			size_t shift = serialize(&buffer[0], request.request_id);
+			buffer[shift++] = request.type;
+			shift += serialize(&buffer[shift], request.target);
+			shift += serialize(&buffer[shift], request.content);
+
+			connection.write(buffer);
+			return true;
+		}else{
+			return false;
+		}
+	}
+
+
 }

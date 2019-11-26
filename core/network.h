@@ -5,9 +5,41 @@
 #include <map>
 #include <set>
 #include <queue>
+#include <optional>
 #include <functional>
 
 namespace dvr {
+	/* 
+	 * Don't change the Message types with out changing the corresponding max size in network.cpp
+	 * I'm wondering if there exists some kind of template magic to autogenerate the sizes
+	 * with some helper classes
+	 */
+	class MessageRequest {
+	public:
+		MessageRequest() = default;
+		MessageRequest(uint16_t, uint8_t, const std::string&, const std::string&);
+		uint16_t request_id;
+		uint8_t type;
+		std::string target;
+		std::string content;
+	};
+	/*
+	 * Same here as above
+	 */
+	class MessageResponse {
+	public:
+		uint16_t request_id;
+		uint8_t return_code;
+		std::string target;
+		std::string content;
+	};
+
+	bool serializeMessageRequest(std::vector<uint8_t>& buffer, MessageRequest& request);
+	bool deserializeMessageRequest(std::vector<uint8_t>& buffer, MessageRequest& request);
+
+	bool serializeMessageResponse(std::vector<uint8_t>& buffer, MessageResponse& response);
+	bool deserializeMessageResponse(std::vector<uint8_t>& buffer, MessageResponse& response);
+
 	class UnixSocketAddress;
 	class Stream;
 	class IFdObserver;
@@ -69,14 +101,39 @@ namespace dvr {
 		int fd();
 	};
 
+	class Connection;
+	class IConnectionObserver {
+	public:
+		virtual ~IConnectionObserver() = default;
+
+		virtual void notifyCreate(Connection& c) = 0;
+		virtual void notifyDestroy(Connection& c) = 0;
+	};
+
 	class Connection : public IFdObserver {
 	private:
 		EventPoll& poll;
 		std::unique_ptr<Stream> stream;
+
+		// non blocking helpers
+		// write buffering
+		std::queue<std::vector<uint8_t>> write_buffer_queue;
+
+		// read buffering 
+		std::queue<std::vector<uint8_t>> read_buffer_queue;
+
+		uint16_t next_message_size;
+		std::vector<uint8_t> incomplete_message;
 	public:
-		Connection(EventPoll& p, std::unique_ptr<Stream>&& str);
+		Connection(EventPoll& p, std::unique_ptr<Stream>&& str/*, IConnectionObserver& obsrv*/);
 
 		void notify(uint8_t mask) override;
+
+		void write(std::vector<uint8_t>& buffer);
+		bool hasWriteQueued() const;
+		
+		std::vector<uint8_t> grabRead();
+		bool hasReadQueued() const;
 	};
 
 	class Server : public IFdObserver {
@@ -110,10 +167,15 @@ namespace dvr {
 
 		void poll();
 
-		void listen(const std::string& address);
+		std::unique_ptr<Server> listen(const std::string& address);
 		std::unique_ptr<Connection> connect(const std::string& address);
 
 		std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& unix_path);
 	};
-
+	
+	std::optional<MessageRequest> asyncReadRequest(Connection& connection);
+	bool asyncWriteRequest(Connection& connection, const MessageRequest& request);
+	
+	std::optional<MessageResponse> asyncReadResponse(Connection& connection);
+	bool asyncWriteResponse(Connection& connection, const MessageResponse& request);
 }
