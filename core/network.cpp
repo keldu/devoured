@@ -13,42 +13,42 @@
 const size_t read_buffer_size = 4096;
 
 namespace dvr {
-	FdObserver::FdObserver(EventPoll& p, int fd):
-		file_descriptor{fd},
-		poll{p}
+	IFdObserver::IFdObserver(EventPoll& p, int file_d, uint8_t msk):
+		poll{p},
+		fd{file_d},
+		mask{msk}
 	{
 		poll.subscribe(*this);
 	}
 
-	FdObserver::~FdObserver(){
+	IFdObserver::~IFdObserver(){
 		poll.unsubscribe(*this);
 	}
 
 	void EventPoll::poll(){
-
+		// Epoll
 	}
 
-	void EventPoll:subscribe(FdObserver& obv){
-		observers.insert(std::make_pair(obv.file_descriptor, &obv));
+	void EventPoll::subscribe(IFdObserver& obv){
+		observers.insert(std::make_pair(obv.fd, &obv));
 	}
 
-	void EventPoll::unsubscribe(FdObserver& obv){
-		observers.erase(obv.file_descriptor);
+	void EventPoll::unsubscribe(IFdObserver& obv){
+		observers.erase(obv.fd);
 	}
 
-	Stream::Stream(int fd, EventPoll& p, StreamCallback& call):
-		file_descriptor{fd},
-		observer{p, fd},
-		poll{p},
+	Stream::Stream(int fd):
+		file_descriptor{fd}
 	{}
 
-	StreamAcceptor::StreamAcceptor(const std::string& sp, int fd, EventPoll& p):
-		signalee{nullptr},
+	int Stream::fd(){
+		return file_descriptor;
+	}
+
+	StreamAcceptor::StreamAcceptor(const std::string& sp, int fd):
 		socket_path{sp},
-		file_descriptor{fd},
-		poll{p}
+		file_descriptor{fd}
 	{
-		read_buffer.resize(read_buffer_size);
 	}
 
 	StreamAcceptor::~StreamAcceptor()
@@ -66,7 +66,7 @@ namespace dvr {
 
 		int accepted_fd = ::accept4(file_descriptor, reinterpret_cast<struct ::sockaddr*>(&addr), &addr_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
 		if(accepted_fd >= 0){
-			stream = std::make_unique<Stream>(accepted_fd, poll);
+			stream = std::make_unique<Stream>(accepted_fd);
 		}else {
 			//TODO Error checking
 			//int error = errno;
@@ -114,11 +114,33 @@ namespace dvr {
 
 		::listen(file_descriptor, SOMAXCONN);
 
-		return std::make_unique<StreamAcceptor>(bind_address, file_descriptor, poll);
+		return std::make_unique<StreamAcceptor>(bind_address, file_descriptor);
+	}
+
+	int StreamAcceptor::fd(){
+		return file_descriptor;
+	}
+
+	Connection::Connection(EventPoll& p, std::unique_ptr<Stream>&& str):
+		IFdObserver(p, str->fd(), 0),
+		poll{p},
+		stream{std::move(str)}
+	{}
+
+	void Connection::notify(uint8_t mask){
+		(void)mask;
+	}
+
+	Server::Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc):
+		IFdObserver(p, acc->fd(), 0),
+		acceptor{std::move(acc)}
+	{}
+
+	void Server::notify(uint8_t mask){
+		(void) mask;
 	}
 
 	std::unique_ptr<Stream> UnixSocketAddress::connect(){
-
 		return 0L;
 	}
 

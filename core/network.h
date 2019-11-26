@@ -9,66 +9,45 @@
 
 namespace dvr {
 	class UnixSocketAddress;
-	class EventPoll;
 	class Stream;
-
-	class StreamReadableSignal {
-	public:
-		virtual ~StreamReadableSignal() = default;
-
-		virtual void notify(StreamCallback& callback) = 0;
-	};
-
-	class FdObserver {
-	private:
-		int file_descriptor;
-		EventPoll& poll;
-		Stream& stream;
-
-		friend struct FdObserverCmp;
-		friend class Stream;
-	public:
-		FdObserver(EventPoll& p, int fd);
-		~FdObserver();
-
-		void becomesWritable();
-		void becomesReadable();
-	};
+	class IFdObserver;
 
 	class EventPoll {
 	private:
-		std::map<int, FdObserver*> observers;
-
-		friend class FdObserver;
+		std::map<int, IFdObserver*> observers;
 	public:
 		void poll();
 
-		void subscribe(FdObserver& obv);
-		void unsubscribe(FdObserver& obv);
+		void subscribe(IFdObserver& obsv);
+		void unsubscribe(IFdObserver& obsv);
 	};
-	
+
+	class IFdObserver {
+	private:
+		EventPoll& poll;
+		int fd;
+		uint8_t mask;
+
+		friend class EventPoll;
+	public:
+		IFdObserver(EventPoll& poll, int fd, uint8_t mask);
+		virtual ~IFdObserver();
+
+		virtual void notify(uint8_t mask) = 0;
+	};
+
 	class Stream{
 	private:
-		std::queue<std::unique_ptr<std::vector<uint8_t>>> write_buffer_queue;
-		std::vector<uint8_t> read_buffer;
-		StreamReadableSignal* signalee;
-
 		int file_descriptor;
-		FdObserver observer;
-		EventPoll& poll;
-
+		
 		friend struct StreamCmp;
-		friend class UnixSocketAddress;
-		friend class StreamAcceptor;
 	public:
-		Stream(int fd, EventPoll& p, StreamCallback& call);
+		Stream(int fd);
 
-		bool operator<(const Stream& b) const {
-			return file_descriptor < b.file_descriptor;
-		}
+		size_t write(uint8_t* buffer, size_t n);
+		size_t read(uint8_t* buffer, size_t n);
 
-		void write(std::unique_ptr<std::vector<uint8_t>>&& buffer);
-		size_t read(StreamReadableSignal& readable);
+		int fd();
 	};
 	
 	struct StreamCmp {
@@ -81,12 +60,32 @@ namespace dvr {
 	private:
 		std::string socket_path;
 		int file_descriptor;
-		EventPoll& poll;
 	public:
-		StreamAcceptor(const std::string& sp, int fd, EventPoll& p);
+		StreamAcceptor(const std::string& sp, int fd);
 		~StreamAcceptor();
 
 		std::unique_ptr<Stream> accept();
+
+		int fd();
+	};
+
+	class Connection : public IFdObserver {
+	private:
+		EventPoll& poll;
+		std::unique_ptr<Stream> stream;
+	public:
+		Connection(EventPoll& p, std::unique_ptr<Stream>&& str);
+
+		void notify(uint8_t mask) override;
+	};
+
+	class Server : public IFdObserver {
+	private:
+		std::unique_ptr<StreamAcceptor> acceptor;
+	public:
+		Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc);
+
+		void notify(uint8_t mask) override;
 	};
 
 	class UnixSocketAddress {
@@ -103,34 +102,16 @@ namespace dvr {
 		const std::string& getPath() const;
 	};
 	
-	class NetworkEvent;
-	class NetworkTrigger {
-	private:
-		NetworkEvent& event;
-	public:
-		NetworkTrigger(NetworkEvent& ev);
-
-		void trigger();
-	};
-
-	class NetworkEvent {
-	private:
-		std::function function;
-	public:
-		void execute();
-		template<typename Function>
-		void then(std::function func){
-			function = func;
-		}
-	};
-
 	class Network {
 	private:
-		EventPoll poll;
+		EventPoll ev_poll;
 	public:
 		Network();
 
 		void poll();
+
+		void listen(const std::string& address);
+		std::unique_ptr<Connection> connect(const std::string& address);
 
 		std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& unix_path);
 	};
