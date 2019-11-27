@@ -123,10 +123,10 @@ namespace dvr {
 		size_t len = (sizeof(local.sun_path)-1) < bind_address.size() ? (sizeof(local.sun_path)-1): bind_address.size();
 		::strncpy(local.sun_path, bind_address.c_str(), len);
 
+		/*
 		struct ::stat stats;
 		status = ::stat(local.sun_path,&stats);
 
-		/*
 		if(status != 0){
 			std::cerr<<"Socket path exists already: "<<local.sun_path<<std::endl;
 			return nullptr;
@@ -160,10 +160,10 @@ namespace dvr {
 		size_t len = (sizeof(local.sun_path)-1) < bind_address.size() ? (sizeof(local.sun_path)-1): bind_address.size();
 		::strncpy(local.sun_path, bind_address.c_str(), len);
 
+		/*
 		struct ::stat stats;
 		status = ::stat(local.sun_path,&stats);
 
-		/*
 		if(status != 0){
 			std::cerr<<"Socket path exists already: "<<local.sun_path<<std::endl;
 			return nullptr;
