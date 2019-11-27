@@ -112,7 +112,7 @@ namespace dvr {
 		//TODO Missing errno check in every state
 
 		if(file_descriptor < 0){
-			std::cerr<<"Couldn't create socket:"<<std::endl;
+			std::cerr<<"Couldn't create socket: "<<(::strerror(errno))<<std::endl;
 			return nullptr;
 		}
 
@@ -147,7 +147,7 @@ namespace dvr {
 		//TODO Missing errno check in every error state
 
 		if(file_descriptor < 0){
-			std::cerr<<"Couldn't create socket:"<<std::endl;
+			std::cerr<<"Couldn't create socket: "<<(::strerror(errno))<<std::endl;
 			return nullptr;
 		}
 
