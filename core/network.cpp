@@ -80,8 +80,8 @@ namespace dvr {
 
 	StreamAcceptor::~StreamAcceptor()
 	{
-		if(file_descriptor != -1){
-			unlink(socket_path.c_str());
+		if(file_descriptor >= 0){
+			::unlink(socket_path.c_str());
 		}
 	}
 
@@ -108,33 +108,31 @@ namespace dvr {
 	{}
 
 	std::unique_ptr<StreamAcceptor> UnixSocketAddress::listen(){
-		int file_descriptor = socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
+		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
+		//TODO Missing errno check in every state
 
-		if(file_descriptor == -1){
-			std::cerr<<"Couldn't create socket at "<<bind_address<<std::endl;
+		if(file_descriptor < 0){
+			std::cerr<<"Couldn't create socket:"<<std::endl;
 			return nullptr;
 		}
 
 		int status;
 
 		struct ::sockaddr_un local;
-		int len;
-		strncpy(local.sun_path, bind_address.c_str(), 108);
 		local.sun_family = AF_UNIX;
+		size_t len = (sizeof(local.sun_path)-1) < bind_address.size() ? (sizeof(local.sun_path)-1): bind_address.size();
+		::strncpy(local.sun_path, bind_address.c_str(), len);
 
 		struct ::stat stats;
 		status = ::stat(local.sun_path,&stats);
 
-		if(status >= 0){
+		if(status != 0){
 			std::cerr<<"Socket path exists already: "<<local.sun_path<<std::endl;
 			return nullptr;
 		}
-		
-		len = strlen(local.sun_path) + sizeof(local.sun_family);
 
-		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, len);
-
-		if( status == -1){
+		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
+		if( status != 0){
 			std::cerr<<"Socket path is malformed: "<<local.sun_path<<std::endl;
 			return nullptr;
 		}
@@ -145,35 +143,35 @@ namespace dvr {
 	}
 	
 	std::unique_ptr<Stream> UnixSocketAddress::connect(){
-		int file_descriptor = socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
-		if( file_descriptor < 0 ){
-			std::cerr<<"Couldn't create socket at "<<bind_address<<std::endl;
+		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
+		//TODO Missing errno check in every error state
+
+		if(file_descriptor < 0){
+			std::cerr<<"Couldn't create socket:"<<std::endl;
 			return nullptr;
 		}
 
 		int status;
 
 		struct ::sockaddr_un local;
-		int len;
-		strncpy(local.sun_path, bind_address.c_str(), 108);
 		local.sun_family = AF_UNIX;
+		size_t len = (sizeof(local.sun_path)-1) < bind_address.size() ? (sizeof(local.sun_path)-1): bind_address.size();
+		::strncpy(local.sun_path, bind_address.c_str(), len);
 
 		struct ::stat stats;
 		status = ::stat(local.sun_path,&stats);
 
-		if(status >= 0){
+		if(status != 0){
 			std::cerr<<"Socket path exists already: "<<local.sun_path<<std::endl;
 			return nullptr;
 		}
-		
-		len = strlen(local.sun_path) + sizeof(local.sun_family);
 
-		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, len);
-
-		if( status == -1){
+		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
+		if( status != 0){
 			std::cerr<<"Socket path is malformed: "<<local.sun_path<<std::endl;
 			return nullptr;
 		}
+
 
 		::connect(file_descriptor, (struct ::sockaddr*)&local, len);
 		return std::make_unique<Stream>(file_descriptor);
