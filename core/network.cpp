@@ -123,16 +123,6 @@ namespace dvr {
 		size_t len = (sizeof(local.sun_path)-1) < bind_address.size() ? (sizeof(local.sun_path)-1): bind_address.size();
 		::strncpy(local.sun_path, bind_address.c_str(), len);
 
-		/*
-		struct ::stat stats;
-		status = ::stat(local.sun_path,&stats);
-
-		if(status != 0){
-			std::cerr<<"Socket path exists already: "<<local.sun_path<<std::endl;
-			return nullptr;
-		}
-		*/
-
 		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
 		if( status != 0){
 			std::cerr<<"Couldn't bind socket: "<<local.sun_path<<std::endl;
@@ -159,16 +149,6 @@ namespace dvr {
 		local.sun_family = AF_UNIX;
 		size_t len = (sizeof(local.sun_path)-1) < bind_address.size() ? (sizeof(local.sun_path)-1): bind_address.size();
 		::strncpy(local.sun_path, bind_address.c_str(), len);
-
-		/*
-		struct ::stat stats;
-		status = ::stat(local.sun_path,&stats);
-
-		if(status != 0){
-			std::cerr<<"Socket path exists already: "<<local.sun_path<<std::endl;
-			return nullptr;
-		}
-		*/
 
 		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
 		if( status != 0){
