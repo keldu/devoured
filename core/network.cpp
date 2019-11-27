@@ -143,6 +143,42 @@ namespace dvr {
 
 		return std::make_unique<StreamAcceptor>(bind_address, file_descriptor);
 	}
+	
+	std::unique_ptr<Stream> UnixSocketAddress::connect(){
+		int file_descriptor = socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
+		if( file_descriptor < 0 ){
+			std::cerr<<"Couldn't create socket at "<<bind_address<<std::endl;
+			return nullptr;
+		}
+
+		int status;
+
+		struct ::sockaddr_un local;
+		int len;
+		strncpy(local.sun_path, bind_address.c_str(), 108);
+		local.sun_family = AF_UNIX;
+
+		struct ::stat stats;
+		status = ::stat(local.sun_path,&stats);
+
+		if(status >= 0){
+			std::cerr<<"Socket path exists already: "<<local.sun_path<<std::endl;
+			return nullptr;
+		}
+		
+		len = strlen(local.sun_path) + sizeof(local.sun_family);
+
+		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, len);
+
+		if( status == -1){
+			std::cerr<<"Socket path is malformed: "<<local.sun_path<<std::endl;
+			return nullptr;
+		}
+
+		::connect(file_descriptor, (struct ::sockaddr*)&local, len);
+		return std::make_unique<Stream>(file_descriptor);
+	}
+
 
 	int StreamAcceptor::fd(){
 		return file_descriptor;
@@ -191,11 +227,6 @@ namespace dvr {
 
 	void Server::notify(uint8_t mask){
 		(void) mask;
-	}
-
-	std::unique_ptr<Stream> UnixSocketAddress::connect(){
-		
-		return nullptr;
 	}
 
 	const std::string& UnixSocketAddress::getPath()const{
