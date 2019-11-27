@@ -126,14 +126,16 @@ namespace dvr {
 		struct ::stat stats;
 		status = ::stat(local.sun_path,&stats);
 
+		/*
 		if(status != 0){
 			std::cerr<<"Socket path exists already: "<<local.sun_path<<std::endl;
 			return nullptr;
 		}
+		*/
 
 		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
 		if( status != 0){
-			std::cerr<<"Socket path is malformed: "<<local.sun_path<<std::endl;
+			std::cerr<<"Couldn't bind socket: "<<local.sun_path<<std::endl;
 			return nullptr;
 		}
 
@@ -161,17 +163,18 @@ namespace dvr {
 		struct ::stat stats;
 		status = ::stat(local.sun_path,&stats);
 
+		/*
 		if(status != 0){
 			std::cerr<<"Socket path exists already: "<<local.sun_path<<std::endl;
 			return nullptr;
 		}
+		*/
 
 		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
 		if( status != 0){
-			std::cerr<<"Socket path is malformed: "<<local.sun_path<<std::endl;
+			std::cerr<<"Couldn't bind socket: "<<local.sun_path<<std::endl;
 			return nullptr;
 		}
-
 
 		::connect(file_descriptor, (struct ::sockaddr*)&local, len);
 		return std::make_unique<Stream>(file_descriptor);
