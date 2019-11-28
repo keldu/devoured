@@ -43,7 +43,7 @@ namespace dvr {
 
 	IFdObserver::IFdObserver(EventPoll& p, int file_d, uint8_t msk):
 		poll{p},
-		fd{file_d},
+		file_desc{file_d},
 		mask{msk}
 	{
 		poll.subscribe(*this);
@@ -53,12 +53,25 @@ namespace dvr {
 		poll.unsubscribe(*this);
 	}
 
+	int IFdObserver::fd()const{
+		return file_desc;
+	}
+
+	EventPoll::EventPoll()
+	{
+		epoll_fd = epoll_create1(0);
+		if( epoll_fd < 0){
+			//TODO error handling
+		}
+	}
+
 	void EventPoll::poll(){
 		// Epoll
 	}
 
 	void EventPoll::subscribe(IFdObserver& obv){
 		observers.insert(std::make_pair(obv.fd, &obv));
+
 	}
 
 	void EventPoll::unsubscribe(IFdObserver& obv){
@@ -151,13 +164,12 @@ namespace dvr {
 		size_t len = (sizeof(local.sun_path)-1) < bind_address.size() ? (sizeof(local.sun_path)-1): bind_address.size();
 		::strncpy(local.sun_path, bind_address.c_str(), len);
 
-		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
+		status = ::connect(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
 		if( status != 0){
-			std::cerr<<"Couldn't bind socket: "<<local.sun_path<<std::endl;
+			std::cerr<<"Couldn't connect to socket: "<<local.sun_path<<std::endl;
 			return nullptr;
 		}
 
-		::connect(file_descriptor, (struct ::sockaddr*)&local, len);
 		return std::make_unique<Stream>(file_descriptor);
 	}
 
@@ -296,6 +308,7 @@ namespace dvr {
 		val_buffer = htole16(value);
 		return 2;
 	}
+
 	size_t serialize(uint8_t* buffer, const std::string& value){
 		size_t shift = serialize(buffer, static_cast<uint16_t>(value.size()));
 		for(size_t i = 0; i < value.size(); ++i){
@@ -325,6 +338,4 @@ namespace dvr {
 			return false;
 		}
 	}
-
-
 }

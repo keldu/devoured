@@ -47,7 +47,10 @@ namespace dvr {
 	class EventPoll {
 	private:
 		std::map<int, IFdObserver*> observers;
+		int ev_fd;
 	public:
+		EventPoll();
+
 		void poll();
 
 		void subscribe(IFdObserver& obsv);
@@ -57,7 +60,7 @@ namespace dvr {
 	class IFdObserver {
 	private:
 		EventPoll& poll;
-		int fd;
+		int file_desc;
 		uint8_t mask;
 
 		friend class EventPoll;
@@ -66,6 +69,8 @@ namespace dvr {
 		virtual ~IFdObserver();
 
 		virtual void notify(uint8_t mask) = 0;
+
+		int fd() const;
 	};
 
 	class Stream{
@@ -149,6 +154,8 @@ namespace dvr {
 	private:
 		EventPoll& poll;
 		std::string bind_address;
+
+		int socketBind();
 	public:
 		UnixSocketAddress(EventPoll& p, const std::string& unix_address);
 
