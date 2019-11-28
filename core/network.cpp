@@ -4,13 +4,14 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/stat.h>
+#include <sys/epoll.h>
+#include <endian.h>
+
 #include <unistd.h>
 #include <errno.h>
 #include <cstring>
 
 #include <iostream>
-
-#include <endian.h>
 
 // Don't remember the value of 2^16 - 1 so 1024 * 64 - 1 will have to do
 const size_t read_buffer_size = 1024 * 64 - 1;
