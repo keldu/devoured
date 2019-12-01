@@ -89,7 +89,9 @@ namespace dvr {
 		size_t write(uint8_t* buffer, size_t n);
 		size_t read(uint8_t* buffer, size_t n);
 
-		int fd();
+		const int& fd() const;
+
+		bool broken() const;
 	};
 	
 	struct StreamCmp {
@@ -112,38 +114,54 @@ namespace dvr {
 	};
 
 	class Connection;
-	class IConnectionObserver {
+	enum class ConnectionState {
+		Broken,
+		ReadReady,
+		WriteReady
+	};
+	class IConnectionStateObserver {
 	public:
-		virtual ~IConnectionObserver() = default;
 
-		virtual void notifyCreate(Connection& c) = 0;
-		virtual void notifyDestroy(Connection& c) = 0;
+		virtual ~IConnectionStateObserver() = default;
+
+		virtual void notify(Connection& c, ConnectionState mask) = 0;
 	};
 
 	class Connection : public IFdObserver {
 	private:
 		EventPoll& poll;
 		std::unique_ptr<Stream> stream;
+		IConnectionStateObserver& observer;
 
 		// non blocking helpers
 		// write buffering
-		std::queue<std::vector<uint8_t>> write_buffer_queue;
+		bool write_ready;
+		std::vector<uint8_t> write_buffer;
 
 		// read buffering 
-		std::queue<std::vector<uint8_t>> read_buffer_queue;
+		bool read_ready;
 
-		uint16_t next_message_size;
-		std::vector<uint8_t> incomplete_message;
+		std::queue<std::vector<uint8_t>> ready_reads;
+		size_t read_offset;
+		size_t next_message_size;
+		std::vector<uint8_t> read_buffer;
+
+		void onReadyWrite();
+		void onReadyRead();
 	public:
-		Connection(EventPoll& p, std::unique_ptr<Stream>&& str/*, IConnectionObserver& obsrv*/);
+		Connection(EventPoll& p, std::unique_ptr<Stream>&& str, IConnectionStateObserver& obsrv);
+		~Connection();
 
 		void notify(uint32_t mask) override;
 
 		void write(std::vector<uint8_t>& buffer);
 		bool hasWriteQueued() const;
 		
-		std::vector<uint8_t> grabRead();
+		std::optional<std::vector<uint8_t>> read();
 		bool hasReadQueued() const;
+
+		const int& fd() const;
+		bool broken() const;
 	};
 
 	class Server : public IFdObserver {
@@ -180,7 +198,7 @@ namespace dvr {
 		void poll();
 
 		std::unique_ptr<Server> listen(const std::string& address);
-		std::unique_ptr<Connection> connect(const std::string& address);
+		std::unique_ptr<Connection> connect(const std::string& address, IConnectionStateObserver& obsrv);
 
 		std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& unix_path);
 	};
