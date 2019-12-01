@@ -164,6 +164,13 @@ namespace dvr {
 		bool broken() const;
 	};
 
+	enum class ServerState {
+		Accept
+	};
+	class IServerStateObserver {
+	public:
+
+	};
 	class Server : public IFdObserver {
 	private:
 		std::unique_ptr<StreamAcceptor> acceptor;
@@ -171,6 +178,8 @@ namespace dvr {
 		Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc);
 
 		void notify(uint32_t mask) override;
+
+		std::unique_ptr<Connection> accept(IConnectionStateObserver& obsrv);
 	};
 
 	class UnixSocketAddress {

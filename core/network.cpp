@@ -329,6 +329,7 @@ namespace dvr {
 			write_buffer = std::move(buffer);
 		}
 		if(write_ready){
+			onReadyWrite();
 		}
 	}
 
@@ -405,7 +406,9 @@ namespace dvr {
 	{}
 
 	void Server::notify(uint32_t mask){
-		(void) mask;
+		if(mask & EPOLLIN){
+			
+		}
 	}
 
 	const std::string& UnixSocketAddress::getPath()const{
