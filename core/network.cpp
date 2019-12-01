@@ -70,12 +70,11 @@ namespace dvr {
 	}
 
 	void EventPoll::subscribe(IFdObserver& obv){
-		observers.insert(std::make_pair(obv.fd, &obv));
-
+		observers.insert(std::make_pair(obv.file_desc, &obv));
 	}
 
 	void EventPoll::unsubscribe(IFdObserver& obv){
-		observers.erase(obv.fd);
+		observers.erase(obv.file_desc);
 	}
 
 	Stream::Stream(int fd):
@@ -329,6 +328,50 @@ namespace dvr {
 
 			size_t shift = serialize(&buffer[0], request.request_id);
 			buffer[shift++] = request.type;
+			shift += serialize(&buffer[shift], request.target);
+			shift += serialize(&buffer[shift], request.content);
+
+			connection.write(buffer);
+			return true;
+		}else{
+			return false;
+		}
+	}
+
+	std::optional<MessageResponse> asyncReadResponse(Connection& connection){
+		if(connection.hasReadQueued()){
+			MessageResponse msg;
+			auto buffer = connection.grabRead();
+			if( buffer.size() >= 2 ){
+				uint16_t msg_size;
+				size_t shift = deserialize(&buffer[0], msg_size);
+				if( msg_size < max_message_size ){
+					shift += deserialize(&buffer[shift], msg.request_id);
+					msg.return_code = buffer[shift++];
+					shift += deserialize(&buffer[shift], msg.target);
+					if( msg.target.size() < max_target_size ){
+						shift += deserialize(&buffer[shift], msg.content);
+						if( msg.content.size() < max_request_content_size ){
+							return msg;
+						}
+					}
+				}
+			}
+		}
+		return std::nullopt;
+	}
+	
+	bool asyncWriteResponse(Connection& connection, const MessageResponse& request){
+		const size_t ct_size = request.content.size();
+		const size_t tg_size = request.target.size();
+		const size_t msg_size = ct_size + tg_size + request_static_size;
+
+		if( msg_size < max_message_size && ct_size < max_request_content_size && tg_size < max_target_size ){
+			std::vector<uint8_t> buffer;
+			buffer.resize(msg_size);
+
+			size_t shift = serialize(&buffer[0], request.request_id);
+			buffer[shift++] = request.return_code;
 			shift += serialize(&buffer[shift], request.target);
 			shift += serialize(&buffer[shift], request.content);
 

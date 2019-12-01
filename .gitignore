@@ -4,4 +4,11 @@
 *.os
 *.pyc
 .sconsign.dblite
+
+
+# bin
 devoured
+
+# ide stuff
+compile_commands.json
+tags

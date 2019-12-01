@@ -28,6 +28,8 @@ namespace dvr {
 	 */
 	class MessageResponse {
 	public:
+		MessageResponse() = default;
+		MessageResponse(uint16_t, uint8_t, const std::string&, const std::string&);
 		uint16_t request_id;
 		uint8_t return_code;
 		std::string target;
@@ -47,7 +49,7 @@ namespace dvr {
 	class EventPoll {
 	private:
 		std::map<int, IFdObserver*> observers;
-		int ev_fd;
+		int epoll_fd;
 	public:
 		EventPoll();
 
