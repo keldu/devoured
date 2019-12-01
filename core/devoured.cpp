@@ -79,7 +79,7 @@ namespace dvr {
 		}
 	};
 
-	class StatusDevoured final : public Devoured, public IConnectionObserver {
+	class StatusDevoured final : public Devoured, public IConnectionStateObserver {
 	private:
 		Network network;
 	public:
@@ -87,11 +87,9 @@ namespace dvr {
 			Devoured(true, 0)
 		{}
 
-		void notifyCreate(Connection& conn) override {
+		void notify(Connection& conn, ConnectionState state) override {
 			(void)conn;
-		}
-		void notifyDestroy(Connection& conn) override {
-			(void)conn;
+			(void)state;
 		}
 	protected:
 		void loop(){
@@ -101,7 +99,7 @@ namespace dvr {
 		}
 	private:
 		void setup(){
-			auto connection = network.connect("/tmp/devoured/default");
+			auto connection = network.connect("/tmp/devoured/default", *this);
 			MessageRequest msg{
 				0,
 				static_cast<uint8_t>(Parameter::Mode::STATUS),

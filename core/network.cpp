@@ -11,13 +11,15 @@
 #include <errno.h>
 #include <cstring>
 
+#include <cassert>
 #include <iostream>
 
 // Don't remember the value of 2^16 - 1 so 1024 * 64 - 1 will have to do
-const size_t read_buffer_size = 1024 * 64 - 1;
+const size_t read_buffer_size = 4096;
 
 const uint16_t max_message_size = 4095 - 2;
 const uint16_t max_target_size = 255;
+const size_t message_length_size = 2;
 /*
  * So This is the rest of the max size. We have 
  * 3 uint16_t values and
@@ -32,6 +34,7 @@ const uint16_t max_request_content_size = max_message_size - max_target_size - r
 // Is by coincidence the same
 const uint16_t response_static_size = 4 * 64;
 const uint16_t max_response_content_size = max_message_size - max_target_size - response_static_size;
+
 
 namespace dvr {
 	MessageRequest::MessageRequest(uint16_t rid_p, uint8_t type_p, const std::string& target_p, const std::string& content_p):
@@ -163,8 +166,32 @@ namespace dvr {
 		file_descriptor{fd}
 	{}
 
-	int Stream::fd(){
+	size_t Stream::write(uint8_t* buffer, size_t length){
+		ssize_t len = send(file_descriptor, buffer, length, 0);
+		if(len < 0){
+			close(file_descriptor);
+			file_descriptor = -1;
+			return 0;
+		}
+		return static_cast<size_t>(len);
+	}
+
+	size_t Stream::read(uint8_t* buffer, size_t length){
+		ssize_t len = recv(file_descriptor, buffer, length, 0);
+		if(len < 0){
+			close(file_descriptor);
+			file_descriptor = -1;
+			return 0;
+		}
+		return static_cast<size_t>(len);
+	}
+
+	const int& Stream::fd() const{
 		return file_descriptor;
+	}
+
+	bool Stream::broken() const {
+		return file_descriptor < 0;
 	}
 
 	StreamAcceptor::StreamAcceptor(const std::string& sp, int fd):
@@ -231,7 +258,6 @@ namespace dvr {
 	
 	std::unique_ptr<Stream> UnixSocketAddress::connect(){
 		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
-		//TODO Missing errno check in every error state
 
 		if(file_descriptor < 0){
 			std::cerr<<"Couldn't create socket: "<<(::strerror(errno))<<std::endl;
@@ -247,7 +273,7 @@ namespace dvr {
 
 		status = ::connect(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
 		if( status != 0){
-			std::cerr<<"Couldn't connect to socket: "<<local.sun_path<<std::endl;
+			std::cerr<<"Couldn't connect to socket at "<<local.sun_path<<" : "<<(::strerror(errno))<<std::endl;
 			return nullptr;
 		}
 
@@ -258,41 +284,120 @@ namespace dvr {
 	int StreamAcceptor::fd(){
 		return file_descriptor;
 	}
+	
+	size_t deserialize(uint8_t* buffer, uint16_t& value){
+		uint16_t& buffer_value = *reinterpret_cast<uint16_t*>(buffer);
+		value = le16toh(buffer_value);
 
-	Connection::Connection(EventPoll& p, std::unique_ptr<Stream>&& str):
+		return 2;
+	}
+
+	Connection::Connection(EventPoll& p, std::unique_ptr<Stream>&& str, IConnectionStateObserver& obsrv):
 		IFdObserver(p, str->fd(), EPOLLIN | EPOLLOUT),
 		poll{p},
-		stream{std::move(str)}
-	{}
+		stream{std::move(str)},
+		observer{obsrv},
+		write_ready{true},
+		read_ready{true},
+		read_offset{0},
+		next_message_size{0}
+	{
+		read_buffer.resize(read_buffer_size);
+	}
+
+	Connection::~Connection(){
+	}
 
 	/*
 	 * Based on EPoll notification accept, read or write in a non blocking way
 	 * and queue reads and/or handle writes
 	 */
 	void Connection::notify(uint32_t mask){
-		(void) mask;
+		if( mask & EPOLLOUT ){
+			onReadyWrite();
+		}
+		if( mask & EPOLLIN ){
+			onReadyRead();
+		}
 	}
 
 	void Connection::write(std::vector<uint8_t>& buffer){
-		(void) buffer;
+		if(!write_ready || (write_ready && !write_buffer.empty())){
+			write_buffer.insert(std::end(write_buffer), std::begin(buffer),std::end(buffer));
+		}
+		if(write_buffer.empty()){
+			write_buffer = std::move(buffer);
+		}
+		if(write_ready){
+			onReadyWrite();
+		}
 	}
 
 	bool Connection::hasWriteQueued() const {
-		return !write_buffer_queue.empty();
+		return !write_buffer.empty();
 	}
 
-	std::vector<uint8_t> Connection::grabRead(){
-		std::vector<uint8_t> front;
-		if(read_buffer_queue.empty()){
-			return front;
+	void Connection::onReadyWrite(){
+		size_t n = stream->write(write_buffer.data(), write_buffer.size());
+		if(n==0){
+			if( stream->broken() ){
+				observer.notify(*this, ConnectionState::Broken);
+			}
+			return;
 		}
-		front = std::move(read_buffer_queue.front());
-		read_buffer_queue.pop();
+		assert(write_buffer.size() > n);
+		size_t remaining = write_buffer.size() - n;
+		for(size_t i = 0; i < remaining; ++i){
+			write_buffer[i] = write_buffer[i+n];
+		}
+		write_buffer.resize(remaining);
+		write_ready = false;
+	}
+
+	void Connection::onReadyRead(){
+		size_t remaining = read_buffer.size() - read_offset;
+		size_t n = stream->read(&read_buffer[read_offset], remaining);
+		read_ready = false;
+		read_offset += n;
+		if( read_offset >= message_length_size ){
+			if( next_message_size < message_length_size ){
+				uint16_t tmp_msg_size;
+				deserialize(&read_buffer[read_offset], tmp_msg_size);
+				next_message_size = tmp_msg_size;
+			}
+			if(read_offset > next_message_size){
+				std::vector<uint8_t> next_message;
+				next_message.assign(read_buffer.begin(), read_buffer.begin()+next_message_size);
+				size_t remaining = read_offset - next_message_size;
+				for(size_t i = 0; i < remaining; ++i){
+					read_buffer[i] = read_buffer[i+next_message_size];
+				}
+				read_offset -= next_message_size;
+				next_message_size = 0;
+				ready_reads.push(std::move(next_message));
+			}
+		}
+	}
+
+	std::optional<std::vector<uint8_t>> Connection::read(){
+		if(ready_reads.empty()){
+			if( read_ready ){
+				onReadyRead();
+				return read();
+			}
+			return std::nullopt;
+		}
+		auto front = std::move(ready_reads.front());
+		ready_reads.pop();
 		return front;
 	}
 
-	bool Connection::hasReadQueued() const {
-		return !read_buffer_queue.empty();
+	bool Connection::hasReadQueued() const{
+		return !ready_reads.empty();
+	}
+
+	bool Connection::broken() const {
+		return stream->broken();
 	}
 
 	Server::Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc):
@@ -301,7 +406,9 @@ namespace dvr {
 	{}
 
 	void Server::notify(uint32_t mask){
-		(void) mask;
+		if(mask & EPOLLIN){
+			
+		}
 	}
 
 	const std::string& UnixSocketAddress::getPath()const{
@@ -327,7 +434,7 @@ namespace dvr {
 		return std::make_unique<Server>(ev_poll, std::move(acceptor));
 	}
 
-	std::unique_ptr<Connection> Network::connect(const std::string& address){
+	std::unique_ptr<Connection> Network::connect(const std::string& address, IConnectionStateObserver& obsrv){
 		auto unix_addr = parseUnixAddress(address);
 		if(!unix_addr){
 			return nullptr;
@@ -336,19 +443,13 @@ namespace dvr {
 		if(!stream){
 			return nullptr;
 		}
-		return std::make_unique<Connection>(ev_poll, std::move(stream));
+		return std::make_unique<Connection>(ev_poll, std::move(stream), obsrv);
 	}
 
 	std::unique_ptr<UnixSocketAddress> Network::parseUnixAddress(const std::string& unix_path){
 		return std::make_unique<UnixSocketAddress>(ev_poll, unix_path);
 	}
 
-	size_t deserialize(uint8_t* buffer, uint16_t& value){
-		uint16_t& buffer_value = *reinterpret_cast<uint16_t*>(buffer);
-		value = le16toh(buffer_value);
-
-		return 2;
-	}
 
 	size_t deserialize(uint8_t* buffer, std::string& value){
 		uint16_t val_size = 0;
@@ -363,7 +464,8 @@ namespace dvr {
 	std::optional<MessageRequest> asyncReadRequest(Connection& connection){
 		if(connection.hasReadQueued()){
 			MessageRequest msg;
-			auto buffer = connection.grabRead();
+			auto opt_buffer = connection.read();
+			auto& buffer = *opt_buffer;
 			if( buffer.size() >= 2 ){
 				uint16_t msg_size;
 				size_t shift = deserialize(&buffer[0], msg_size);
@@ -423,7 +525,8 @@ namespace dvr {
 	std::optional<MessageResponse> asyncReadResponse(Connection& connection){
 		if(connection.hasReadQueued()){
 			MessageResponse msg;
-			auto buffer = connection.grabRead();
+			auto opt_buffer = connection.read();
+			auto& buffer = *opt_buffer;
 			if( buffer.size() >= 2 ){
 				uint16_t msg_size;
 				size_t shift = deserialize(&buffer[0], msg_size);
