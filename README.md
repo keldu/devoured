@@ -21,5 +21,6 @@ List of features
 
 | Feature	| Status	|
 |-----------|-----------|
-| Network	| &#9745;	|
+| Network	| :heavy_check_mark:	|
+| Fork		| :heavy_check_mark:	|
 
