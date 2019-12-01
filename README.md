@@ -16,3 +16,10 @@ The scheme how to start the services may be based on something like
 `devoured -n -t terraria`  
 
 Currently not working, but the general layout is done. Just have to write a proper management socket for devoured.  
+
+List of features  
+
+| Feature	| Status	|
+|-----------|-----------|
+| Network	| &#9745;	|
+
