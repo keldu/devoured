@@ -48,12 +48,14 @@ namespace dvr {
 
 	class EventPoll {
 	private:
-		std::map<int, IFdObserver*> observers;
-		int epoll_fd;
+		// Impl Pattern
+		class Impl;
+		std::unique_ptr<Impl> impl;
 	public:
 		EventPoll();
+		~EventPoll();
 
-		void poll();
+		bool poll();
 
 		void subscribe(IFdObserver& obsv);
 		void unsubscribe(IFdObserver& obsv);
@@ -63,16 +65,17 @@ namespace dvr {
 	private:
 		EventPoll& poll;
 		int file_desc;
-		uint8_t mask;
+		uint32_t event_mask;
 
 		friend class EventPoll;
 	public:
-		IFdObserver(EventPoll& poll, int fd, uint8_t mask);
+		IFdObserver(EventPoll& poll, int fd, uint32_t mask);
 		virtual ~IFdObserver();
 
-		virtual void notify(uint8_t mask) = 0;
+		virtual void notify(uint32_t mask) = 0;
 
 		int fd() const;
+		uint32_t mask() const;
 	};
 
 	class Stream{
@@ -134,7 +137,7 @@ namespace dvr {
 	public:
 		Connection(EventPoll& p, std::unique_ptr<Stream>&& str/*, IConnectionObserver& obsrv*/);
 
-		void notify(uint8_t mask) override;
+		void notify(uint32_t mask) override;
 
 		void write(std::vector<uint8_t>& buffer);
 		bool hasWriteQueued() const;
@@ -149,7 +152,7 @@ namespace dvr {
 	public:
 		Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc);
 
-		void notify(uint8_t mask) override;
+		void notify(uint32_t mask) override;
 	};
 
 	class UnixSocketAddress {

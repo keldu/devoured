@@ -41,10 +41,10 @@ namespace dvr {
 		content{content_p}
 	{}
 
-	IFdObserver::IFdObserver(EventPoll& p, int file_d, uint8_t msk):
+	IFdObserver::IFdObserver(EventPoll& p, int file_d, uint32_t msk):
 		poll{p},
 		file_desc{file_d},
-		mask{msk}
+		event_mask{msk}
 	{
 		poll.subscribe(*this);
 	}
@@ -57,24 +57,106 @@ namespace dvr {
 		return file_desc;
 	}
 
-	EventPoll::EventPoll()
-	{
-		epoll_fd = epoll_create1(0);
-		if( epoll_fd < 0){
-			//TODO error handling
-		}
+	uint32_t IFdObserver::mask()const{
+		return event_mask;
 	}
+	
+	const size_t max_events = 256;
 
-	void EventPoll::poll(){
-		// Epoll
+	class EventPoll::Impl {
+	private:
+		std::map<int, IFdObserver*> observers;
+
+		int epoll_fd;
+		bool broken;
+
+		::epoll_event events[max_events];
+	public:
+		Impl():
+			broken{false}
+		{
+			epoll_fd = epoll_create1(0);
+			if(epoll_fd < 0){
+				broken = true;
+			}
+		}
+
+		~Impl(){
+			if(epoll_fd > 0){
+				close(epoll_fd);
+			}
+		}
+
+		bool poll(){
+			if(broken){
+				return true;
+			}
+			int nfds = ::epoll_wait(epoll_fd, events, max_events, -1);
+			if(nfds < 0){
+				return broken = true;
+			}
+
+			for(int n = 0; n < nfds; ++n){
+				int fd_event = events[n].data.fd;
+				auto finder = observers.find(fd_event);
+				if(finder == observers.end()){
+					return broken = true;
+				}
+				finder->second->notify(events[n].events);
+			}
+
+			return broken;
+		}
+
+		void subscribe(IFdObserver& obsv){
+			if(!broken){
+				int fd = obsv.fd();
+				::epoll_event event;
+				event.events = obsv.mask();
+				event.data.fd = fd;
+				
+				if(::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event)){
+					broken = true;
+					return;
+				}
+
+				observers.insert(std::make_pair(fd, &obsv));
+			}
+		}
+
+		void unsubscribe(IFdObserver& obsv){
+			if(!broken){
+				int fd = obsv.fd();
+				::epoll_event event;
+				event.events = obsv.mask();
+				event.data.fd = fd;
+
+				if(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &event)){
+					broken = true;
+					return;
+				}
+
+				observers.erase(fd);
+			}
+		}
+	};
+
+	EventPoll::EventPoll():
+		impl{std::make_unique<EventPoll::Impl>()}
+	{
+	}
+	EventPoll::~EventPoll(){}
+
+	bool EventPoll::poll(){
+		return impl->poll();
 	}
 
 	void EventPoll::subscribe(IFdObserver& obv){
-		observers.insert(std::make_pair(obv.file_desc, &obv));
+		impl->subscribe(obv);
 	}
 
 	void EventPoll::unsubscribe(IFdObserver& obv){
-		observers.erase(obv.file_desc);
+		impl->unsubscribe(obv);
 	}
 
 	Stream::Stream(int fd):
@@ -178,7 +260,7 @@ namespace dvr {
 	}
 
 	Connection::Connection(EventPoll& p, std::unique_ptr<Stream>&& str):
-		IFdObserver(p, str->fd(), 0),
+		IFdObserver(p, str->fd(), EPOLLIN | EPOLLOUT),
 		poll{p},
 		stream{std::move(str)}
 	{}
@@ -187,7 +269,7 @@ namespace dvr {
 	 * Based on EPoll notification accept, read or write in a non blocking way
 	 * and queue reads and/or handle writes
 	 */
-	void Connection::notify(uint8_t mask){
+	void Connection::notify(uint32_t mask){
 		(void) mask;
 	}
 
@@ -214,11 +296,11 @@ namespace dvr {
 	}
 
 	Server::Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc):
-		IFdObserver(p, acc->fd(), 0),
+		IFdObserver(p, acc->fd(), EPOLLIN),
 		acceptor{std::move(acc)}
 	{}
 
-	void Server::notify(uint8_t mask){
+	void Server::notify(uint32_t mask){
 		(void) mask;
 	}
 
