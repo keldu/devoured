@@ -231,7 +231,6 @@ namespace dvr {
 	
 	std::unique_ptr<Stream> UnixSocketAddress::connect(){
 		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
-		//TODO Missing errno check in every error state
 
 		if(file_descriptor < 0){
 			std::cerr<<"Couldn't create socket: "<<(::strerror(errno))<<std::endl;
@@ -247,7 +246,7 @@ namespace dvr {
 
 		status = ::connect(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
 		if( status != 0){
-			std::cerr<<"Couldn't connect to socket: "<<local.sun_path<<std::endl;
+			std::cerr<<"Couldn't connect to socket at "<<local.sun_path<<" : "<<(::strerror(errno))<<std::endl;
 			return nullptr;
 		}
 
