@@ -242,8 +242,9 @@ namespace dvr {
 
 		struct ::sockaddr_un local;
 		local.sun_family = AF_UNIX;
-		size_t len = sizeof(local.sun_path) < (bind_address.size()+1) ? sizeof(local.sun_path):(bind_address.size()+1);
+		size_t len = (sizeof(local.sun_path)-1) < bind_address.size() ? (sizeof(local.sun_path)-1): bind_address.size();
 		::strncpy(local.sun_path, bind_address.c_str(), len);
+		local.sun_path[len] = 0;
 
 		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
 		if( status != 0){
@@ -268,8 +269,9 @@ namespace dvr {
 
 		struct ::sockaddr_un local;
 		local.sun_family = AF_UNIX;
-		size_t len = sizeof(local.sun_path) < (bind_address.size()+1) ? sizeof(local.sun_path):(bind_address.size()+1);
+		size_t len = (sizeof(local.sun_path)-1) < bind_address.size() ? (sizeof(local.sun_path)-1): bind_address.size();
 		::strncpy(local.sun_path, bind_address.c_str(), len);
+		local.sun_path[len] = 0;
 
 		status = ::connect(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
 		if( status != 0){
