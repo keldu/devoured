@@ -145,11 +145,11 @@ namespace dvr {
 				context = std::make_unique<InvalidDevoured>();
 				break;
 			}
-			case Parameter::Mode::SERVICE:{
+			case Parameter::Mode::DAEMON:{
 				context = std::make_unique<ServiceDevoured>("config.toml");
 				break;
 			}
-			case Parameter::Mode::SPAWN:{
+			case Parameter::Mode::CREATE:{
 				context = std::make_unique<SpawnDevoured>();
 				break;
 			}
