@@ -3,11 +3,18 @@
 #include <chrono>
 #include <list>
 #include <thread>
+#include <sstream>
+
+#include <unistd.h>
+#include <sys/types.h>
 
 #include "arguments/parameter.h"
 #include "signal_handler.h"
 
 namespace dvr {
+	static uid_t user_id = 0;
+	std::string user_id_string = "";
+
 	class ServiceDevoured final : public Devoured {
 	private:
 		Network network;
@@ -41,7 +48,7 @@ namespace dvr {
 
 		void setupControlInterface(){
 			std::string socket_path = config.control_iloc;
-			socket_path += config.control_name;
+			socket_path += config.control_name + user_id_string;
 
 			//unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
 			//TODO: Check correct file path somewhere
@@ -92,21 +99,26 @@ namespace dvr {
 			(void)state;
 		}
 	protected:
-		void loop(){
+		void loop()override{
 			setup();
 			while(isActive()){
 			}
 		}
 	private:
 		void setup(){
-			auto connection = network.connect("/tmp/devoured/default", *this);
+
+			auto connection = network.connect(std::string{"/tmp/devoured/default"}+ user_id_string, *this);
 			MessageRequest msg{
 				0,
 				static_cast<uint8_t>(Parameter::Mode::STATUS),
 				"",
 				""
 			};
-			if(!asyncWriteRequest(*connection, msg)){
+			if(connection){
+				if(!asyncWriteRequest(*connection, msg)){
+					stop();
+				}
+			}else{
 				stop();
 			}
 		}
@@ -137,6 +149,11 @@ namespace dvr {
 	}
 
 	std::unique_ptr<Devoured> createContext(int argc, char** argv){
+		user_id = ::getuid();
+		std::stringstream ss;
+		ss<<"-"<<user_id;
+		user_id_string = ss.str();
+
 		std::unique_ptr<Devoured> context;
 		const Parameter parameter = parseParams(argc, argv);
 
