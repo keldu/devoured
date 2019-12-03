@@ -6,7 +6,7 @@
 namespace dvr {
 	class ProcessStream{
 	public:
-		ProcessStream(const std::string& ef, int pid, std::array<int,3> fds);
+		ProcessStream(const std::string& ef, int pid, const std::array<int,3>& fds);
 
 		/*
 		 *	returns the file descriptor from the parent side which replaced
@@ -25,5 +25,5 @@ namespace dvr {
 		std::string exec_file;
 	};
 
-	std::pair<std::unique_ptr<ProcessStream>,int> createProcessStream(const std::string& exec_file);
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file);
 }

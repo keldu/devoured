@@ -6,7 +6,7 @@
 #include <iostream>
 
 namespace dvr {
-	ProcessStream::ProcessStream(const std::string& ef, int pid, std::array<int,3> fds):
+	ProcessStream::ProcessStream(const std::string& ef, int pid, const std::array<int,3>& fds):
 		process_id{pid},
 		file_descriptors{fds},
 		exec_file{ef}
@@ -22,8 +22,8 @@ namespace dvr {
 		return file_descriptors;
 	}
 	
-	std::pair<std::unique_ptr<ProcessStream>,int> createProcessStream(const std::string& exec_file){
-		std::pair<std::unique_ptr<ProcessStream>,int> process{nullptr,0};
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file){
+		std::unique_ptr<ProcessStream> process{nullptr};
 		int fds[2][3];
 
 		// Creating each pipe
@@ -37,7 +37,7 @@ namespace dvr {
 						close(fds[j][k]);
 					}
 				}
-				return std::make_pair(nullptr,-2);
+				return nullptr;
 			}
 		}
 
@@ -51,7 +51,7 @@ namespace dvr {
 		}
 
 		int pid = fork();
-		if( pid == -1 ){
+		if( pid < 0 ){
 			for(uint8_t i = 0; i < 3; ++i){
 				for(uint8_t j = 0; j < 2; ++j){
 					close(fds[i][j]);
@@ -79,9 +79,8 @@ namespace dvr {
 			for(uint8_t i = 0; i < 3; ++i){
 				close(fds[i][1]);
 			}
-			process.first = std::make_unique<ProcessStream>(exec_file, pid, std::array<int,3>{fds[0][0],fds[1][0],fds[2][0]});
+			process = std::make_unique<ProcessStream>(exec_file, pid, std::array<int,3>{fds[0][0],fds[1][0],fds[2][0]});
 		}
-		process.second = pid;
 		return process;
 	}
 }
