@@ -137,24 +137,7 @@ namespace dvr {
 	void EventPoll::unsubscribe(IFdObserver& obv){
 		impl->unsubscribe(obv);
 	}
-/* TODO Not yet implemented in server. Delete this then
-	std::unique_ptr<Stream> StreamAcceptor::accept(){
-		std::unique_ptr<Stream> stream;
-
-		struct ::sockaddr_storage addr;
-		socklen_t addr_len = sizeof(addr);
-
-		int accepted_fd = ::accept4(file_descriptor, reinterpret_cast<struct ::sockaddr*>(&addr), &addr_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
-		if(accepted_fd >= 0){
-			stream = std::make_unique<Stream>(accepted_fd);
-		}else {
-			//TODO Error checking
-			//int error = errno;
-		}
-
-		return stream;
-	}
-*/
+	
 	UnixSocketAddress::UnixSocketAddress(EventPoll& p, const std::string& unix_addr):
 		poll{p},
 		bind_address{unix_addr}
@@ -185,7 +168,7 @@ namespace dvr {
 
 		::listen(file_descriptor, SOMAXCONN);
 
-		return std::make_unique<StreamAcceptor>(bind_address, file_descriptor);
+		return std::make_unique<Server>(bind_address, file_descriptor);
 	}
 	
 	std::unique_ptr<Connection> UnixSocketAddress::connect(){
@@ -264,7 +247,9 @@ namespace dvr {
 	void Connection::onReadyWrite(){
 		do{
 			ssize_t n = ::send(file_desc, write_buffer.data(), write_buffer.size(), MSG_NOSIGNAL);
+
 			// TODO msg handling
+			/*
 			if(stream->broken()){
 				observer.notify(*this, ConnectionState::Broken);
 				return;
@@ -276,6 +261,7 @@ namespace dvr {
 			}
 			write_buffer.resize(remaining);
 			write_ready = false;
+			*/
 		}while(write_ready);
 	}
 
@@ -287,6 +273,7 @@ namespace dvr {
 			
 			// TODO better handling. generally don't have to read til I'm EGAIN.
 			// I just need to read correctly
+			/*
 			read_ready = false;
 			read_offset += n;
 			if( read_offset >= message_length_size ){
@@ -307,6 +294,7 @@ namespace dvr {
 					ready_reads.push(std::move(next_message));
 				}
 			}
+			*/
 		}while(read_ready);
 	}
 
@@ -328,17 +316,16 @@ namespace dvr {
 	}
 
 	bool Connection::broken() const {
-		return stream->broken();
+		return is_broken;
 	}
 
 	const ConnectionId& Connection::id()const{
 		return connection_id;
 	}
 
-	Server::Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc, IServerStateObserver& obs):
-		IFdObserver(p, acc->fd(), EPOLLIN),
+	Server::Server(EventPoll& p, int fd, IServerStateObserver& obs):
+		IFdObserver(p, fd, EPOLLIN),
 		event_poll{p},
-		acceptor{std::move(acc)},
 		observer{obs}
 	{}
 
@@ -349,9 +336,18 @@ namespace dvr {
 	}
 
 	std::unique_ptr<Connection> Server::accept(IConnectionStateObserver& obsrv){
-		std::unique_ptr<Stream> stream = acceptor->accept();
-		
-		return std::make_unique<Connection>(event_poll, std::move(stream), obsrv);
+		struct ::sockaddr_storage addr;
+		socklen_t addr_len = sizeof(addr);
+
+		int accepted_fd = ::accept4(file_desc, reinterpret_cast<struct ::sockaddr*>(&addr), &addr_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
+
+		if(accepted_fd<0) {
+			//TODO Error checking
+			//int error = errno;
+			return nullptr;
+		}
+
+		return std::make_unique<Connection>(event_poll, accepted_fd, obsrv);
 	}
 
 	const std::string& UnixSocketAddress::getPath()const{
