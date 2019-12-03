@@ -43,7 +43,6 @@ namespace dvr {
 	bool deserializeMessageResponse(std::vector<uint8_t>& buffer, MessageResponse& response);
 
 	class UnixSocketAddress;
-	class Stream;
 	class IFdObserver;
 
 	class EventPoll {
@@ -78,42 +77,6 @@ namespace dvr {
 		uint32_t mask() const;
 	};
 
-	class Stream{
-	private:
-		bool is_broken;
-		const int file_descriptor;
-		
-		friend struct StreamCmp;
-	public:
-		Stream(int fd);
-
-		size_t write(uint8_t* buffer, size_t n);
-		size_t read(uint8_t* buffer, size_t n);
-
-		const int& fd() const;
-
-		bool broken() const;
-	};
-	
-	struct StreamCmp {
-		bool operator()(Stream* a, Stream* b)const{
-			return a->file_descriptor < b->file_descriptor;
-		}
-	};
-	
-	class StreamAcceptor {
-	private:
-		std::string socket_path;
-		int file_descriptor;
-	public:
-		StreamAcceptor(const std::string& sp, int fd);
-		~StreamAcceptor();
-
-		std::unique_ptr<Stream> accept();
-
-		int fd();
-	};
-
 	class Connection;
 	enum class ConnectionState {
 		Broken,
@@ -132,9 +95,11 @@ namespace dvr {
 	class Connection : public IFdObserver {
 	private:
 		EventPoll& poll;
-		std::unique_ptr<Stream> stream;
 		const ConnectionId connection_id;
 		IConnectionStateObserver& observer;
+		
+		int file_desc;
+		bool is_broken;
 
 		// non blocking helpers
 		// write buffering
@@ -152,7 +117,7 @@ namespace dvr {
 		void onReadyWrite();
 		void onReadyRead();
 	public:
-		Connection(EventPoll& p, std::unique_ptr<Stream>&& str, IConnectionStateObserver& obsrv);
+		Connection(EventPoll& p, int fd, IConnectionStateObserver& obsrv);
 		~Connection();
 
 		void notify(uint32_t mask) override;
@@ -179,11 +144,11 @@ namespace dvr {
 	};
 	class Server : public IFdObserver {
 	private:
+		int file_desc;
 		EventPoll& event_poll;
-		std::unique_ptr<StreamAcceptor> acceptor;
 		IServerStateObserver& observer;
 	public:
-		Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc, IServerStateObserver& srv);
+		Server(EventPoll& p, int fd, IServerStateObserver& srv);
 
 		void notify(uint32_t mask) override;
 
@@ -199,8 +164,8 @@ namespace dvr {
 	public:
 		UnixSocketAddress(EventPoll& p, const std::string& unix_address);
 
-		std::unique_ptr<StreamAcceptor> listen();
-		std::unique_ptr<Stream> connect();
+		std::unique_ptr<Server> listen();
+		std::unique_ptr<Connection> connect();
 
 		int getFD() const;
 		const std::string& getPath() const;

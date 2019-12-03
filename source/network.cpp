@@ -115,9 +115,7 @@ namespace dvr {
 		void subscribe(IFdObserver& obsv){
 			if(!broken){
 				int fd = obsv.fd();
-				if(fd < 0){
-					return;
-				}
+				assert(fd >= 0);
 				::epoll_event event;
 				event.events = obsv.mask();
 				event.data.fd = fd;
@@ -134,9 +132,7 @@ namespace dvr {
 		void unsubscribe(IFdObserver& obsv){
 			if(!broken){
 				int fd = obsv.fd();
-				if( fd < 0 ){
-					return;
-				}
+				assert(fd >= 0);
 				::epoll_event event;
 				event.events = obsv.mask();
 				event.data.fd = fd;
@@ -174,24 +170,35 @@ namespace dvr {
 		file_descriptor{fd}
 	{}
 
-	size_t Stream::write(uint8_t* buffer, size_t length){
-		ssize_t len = send(file_descriptor, buffer, length, 0);
+	ssize_t Stream::write(uint8_t* buffer, size_t length){
+		ssize_t len = send(file_descriptor, buffer, length, MSG_NOSIGNAL);
 		if(len < 0){
-			close(file_descriptor);
-			is_broken = true;
-			return 0;
+			switch(len){
+				case EAGAIN:
+				{
+					break;
+				}
+				default:
+				{
+					close(file_descriptor);
+					is_broken = true;
+				}
+			}
 		}
-		return static_cast<size_t>(len);
+		return len;
 	}
 
-	size_t Stream::read(uint8_t* buffer, size_t length){
+	ssize_t Stream::read(uint8_t* buffer, size_t length){
 		ssize_t len = recv(file_descriptor, buffer, length, 0);
 		if(len < 0){
-			close(file_descriptor);
-			is_broken = true;
-			return 0;
+			switch(len){
+				default:
+					close(file_descriptor);
+					is_broken = true;
+			}
+			len = 0;
 		}
-		return static_cast<size_t>(len);
+		return len;
 	}
 
 	const int& Stream::fd() const{
@@ -304,12 +311,13 @@ namespace dvr {
 	
 	static ConnectionId next_connection_id = 0;
 
-	Connection::Connection(EventPoll& p, std::unique_ptr<Stream>&& str, IConnectionStateObserver& obsrv):
-		IFdObserver(p, str->fd(), EPOLLIN | EPOLLOUT),
+	Connection::Connection(EventPoll& p, int fd, IConnectionStateObserver& obsrv):
+		IFdObserver(p, fd, EPOLLIN | EPOLLOUT),
 		poll{p},
-		stream{std::move(str)},
 		connection_id{++next_connection_id},
 		observer{obsrv},
+		file_desc{fd},
+		is_broken{false},
 		write_ready{true},
 		read_ready{true},
 		read_offset{0},
@@ -335,11 +343,10 @@ namespace dvr {
 	}
 
 	void Connection::write(std::vector<uint8_t>& buffer){
-		if(!write_ready || (write_ready && !write_buffer.empty())){
-			write_buffer.insert(std::end(write_buffer), std::begin(buffer),std::end(buffer));
-		}
 		if(write_buffer.empty()){
 			write_buffer = std::move(buffer);
+		}else{
+			write_buffer.insert(std::end(write_buffer), std::begin(buffer),std::end(buffer));
 		}
 		if(write_ready){
 			onReadyWrite();
@@ -351,45 +358,54 @@ namespace dvr {
 	}
 
 	void Connection::onReadyWrite(){
-		size_t n = stream->write(write_buffer.data(), write_buffer.size());
-		if(n==0){
-			if( stream->broken() ){
-				observer.notify(*this, ConnectionState::Broken);
+		do{
+			ssize_t n = ::send(file_desc, write_buffer.data(), write_buffer.size(), MSG_NOSIGNAL);
+			// TODO msg handling
+			if(stream->broken()){
+				if( stream->broken() ){
+					observer.notify(*this, ConnectionState::Broken);
+				}
+				return;
 			}
-			return;
-		}
-		assert(write_buffer.size() > n);
-		size_t remaining = write_buffer.size() - n;
-		for(size_t i = 0; i < remaining; ++i){
-			write_buffer[i] = write_buffer[i+n];
-		}
-		write_buffer.resize(remaining);
-		write_ready = false;
+			
+			size_t remaining = write_buffer.size() - n;
+			for(size_t i = 0; i < remaining; ++i){
+				write_buffer[i] = write_buffer[i+n];
+			}
+			write_buffer.resize(remaining);
+			write_ready = false;
+		}while(write_ready);
 	}
 
 	void Connection::onReadyRead(){
-		size_t remaining = read_buffer.size() - read_offset;
-		size_t n = stream->read(&read_buffer[read_offset], remaining);
-		read_ready = false;
-		read_offset += n;
-		if( read_offset >= message_length_size ){
-			if( next_message_size < message_length_size ){
-				uint16_t tmp_msg_size;
-				deserialize(&read_buffer[read_offset], tmp_msg_size);
-				next_message_size = tmp_msg_size;
-			}
-			if(read_offset > next_message_size){
-				std::vector<uint8_t> next_message;
-				next_message.assign(read_buffer.begin(), read_buffer.begin()+next_message_size);
-				size_t remaining = read_offset - next_message_size;
-				for(size_t i = 0; i < remaining; ++i){
-					read_buffer[i] = read_buffer[i+next_message_size];
+		do {
+			// Not yet read into the buffer
+			size_t remaining = read_buffer.size() - read_offset;
+			ssize_t n = ::recv(file_desc, &read_buffer[read_offset], remaining, 0);
+			
+			// TODO better handling. generally don't have to read til I'm EGAIN.
+			// I just need to read correctly
+			read_ready = false;
+			read_offset += n;
+			if( read_offset >= message_length_size ){
+				if( next_message_size < message_length_size ){
+					uint16_t tmp_msg_size;
+					deserialize(&read_buffer[read_offset], tmp_msg_size);
+					next_message_size = tmp_msg_size;
 				}
-				read_offset -= next_message_size;
-				next_message_size = 0;
-				ready_reads.push(std::move(next_message));
+				if(read_offset > next_message_size){
+					std::vector<uint8_t> next_message;
+					next_message.assign(read_buffer.begin(), read_buffer.begin()+next_message_size);
+					size_t remaining = read_offset - next_message_size;
+					for(size_t i = 0; i < remaining; ++i){
+						read_buffer[i] = read_buffer[i+next_message_size];
+					}
+					read_offset -= next_message_size;
+					next_message_size = 0;
+					ready_reads.push(std::move(next_message));
+				}
 			}
-		}
+		}while(read_ready);
 	}
 
 	std::optional<std::vector<uint8_t>> Connection::read(){
