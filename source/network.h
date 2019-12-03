@@ -151,10 +151,4 @@ namespace dvr {
 
 		std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& unix_path);
 	};
-	
-	std::optional<MessageRequest> asyncReadRequest(Connection& connection);
-	bool asyncWriteRequest(Connection& connection, const MessageRequest& request);
-	
-	std::optional<MessageResponse> asyncReadResponse(Connection& connection);
-	bool asyncWriteResponse(Connection& connection, const MessageResponse& request);
 }

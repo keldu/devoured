@@ -6,6 +6,7 @@
 #include <optional>
 
 namespace dvr {
+	class Connection;
 	/* 
 	 * Don't change the Message types with out changing the corresponding max size in network.cpp
 	 * I'm wondering if there exists some kind of template magic to autogenerate the sizes
@@ -38,4 +39,10 @@ namespace dvr {
 
 	bool serializeMessageResponse(std::vector<uint8_t>& buffer, MessageResponse& response);
 	bool deserializeMessageResponse(std::vector<uint8_t>& buffer, MessageResponse& response);
+	
+	std::optional<MessageRequest> asyncReadRequest(Connection& connection);
+	bool asyncWriteRequest(Connection& connection, const MessageRequest& request);
+	
+	std::optional<MessageResponse> asyncReadResponse(Connection& connection);
+	bool asyncWriteResponse(Connection& connection, const MessageResponse& request);
 }
