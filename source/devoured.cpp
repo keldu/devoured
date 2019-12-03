@@ -4,6 +4,7 @@
 #include <list>
 #include <thread>
 #include <sstream>
+#include <map>
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -12,12 +13,19 @@
 #include "signal_handler.h"
 
 namespace dvr {
+	// TODO integrate in non static way. Maybe integrate this in the devoured base class
 	static uid_t user_id = 0;
-	std::string user_id_string = "";
+	static std::string user_id_string = "";
 
-	class ServiceDevoured final : public Devoured {
+	class ServiceDevoured final : public Devoured, public IConnectionStateObserver, public IServerStateObserver {
 	private:
 		Network network;
+
+		/*
+		 * Key - ConnId - Connection ID
+		 * Value - the connection ptr
+		 */
+		std::map<ConnectionId, std::unique_ptr<Connection>> connection_map;
 	public:
 		ServiceDevoured(const std::string& f):
 			Devoured(true, 0),
@@ -26,8 +34,27 @@ namespace dvr {
 		{}
 
 		std::chrono::steady_clock::time_point next_update;
+
+		void notify(Connection& conn, ConnectionState state) override {
+			switch(state){
+				case ConnectionState::Broken:{
+					connection_map.erase(conn.id());
+					std::cout<<"Connection unregistered in DaemonDevoured"<<std::endl;
+				}
+				break;
+			}
+		}
+
+		void notify(Server& server, ServerState state) override {
+			if( state == ServerState::Accept ){
+				auto connection = server.accept(*this);
+				ConnectionId id = connection->id();
+				connection_map.insert(std::make_pair(id, std::move(connection)));
+				std::cout<<"Connection registered in DaemonDevoured"<<std::endl;
+			}
+		}
 	protected:
-		void loop(){
+		void loop() override {
 			setup();
 			while(isActive()){
 				std::this_thread::sleep_until(next_update);
@@ -50,10 +77,10 @@ namespace dvr {
 			std::string socket_path = config.control_iloc;
 			socket_path += config.control_name + user_id_string;
 
-			//unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
-			//TODO: Check correct file path somewhere
+			// unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
+			// TODO: Check correct file path somewhere
 
-			control_server = network.listen(socket_path);
+			control_server = network.listen(socket_path,*this);
 			if(!control_server){
 				stop();
 			}
@@ -106,7 +133,6 @@ namespace dvr {
 		}
 	private:
 		void setup(){
-
 			auto connection = network.connect(std::string{"/tmp/devoured/default"}+ user_id_string, *this);
 			MessageRequest msg{
 				0,

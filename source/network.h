@@ -80,7 +80,8 @@ namespace dvr {
 
 	class Stream{
 	private:
-		int file_descriptor;
+		bool is_broken;
+		const int file_descriptor;
 		
 		friend struct StreamCmp;
 	public:
@@ -127,10 +128,12 @@ namespace dvr {
 		virtual void notify(Connection& c, ConnectionState mask) = 0;
 	};
 
+	typedef uint64_t ConnectionId;
 	class Connection : public IFdObserver {
 	private:
 		EventPoll& poll;
 		std::unique_ptr<Stream> stream;
+		const ConnectionId connection_id;
 		IConnectionStateObserver& observer;
 
 		// non blocking helpers
@@ -162,20 +165,25 @@ namespace dvr {
 
 		const int& fd() const;
 		bool broken() const;
+		const ConnectionId& id() const;
 	};
 
 	enum class ServerState {
 		Accept
 	};
+	class Server;
 	class IServerStateObserver {
 	public:
-
+		virtual ~IServerStateObserver() = default;
+		virtual void notify(Server& server, ServerState state) = 0;
 	};
 	class Server : public IFdObserver {
 	private:
+		EventPoll& event_poll;
 		std::unique_ptr<StreamAcceptor> acceptor;
+		IServerStateObserver& observer;
 	public:
-		Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc);
+		Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc, IServerStateObserver& srv);
 
 		void notify(uint32_t mask) override;
 
@@ -206,7 +214,7 @@ namespace dvr {
 
 		void poll();
 
-		std::unique_ptr<Server> listen(const std::string& address);
+		std::unique_ptr<Server> listen(const std::string& address, IServerStateObserver& obsrv);
 		std::unique_ptr<Connection> connect(const std::string& address, IConnectionStateObserver& obsrv);
 
 		std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& unix_path);

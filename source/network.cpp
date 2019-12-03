@@ -37,6 +37,7 @@ const uint16_t max_response_content_size = max_message_size - max_target_size - 
 
 
 namespace dvr {
+
 	MessageRequest::MessageRequest(uint16_t rid_p, uint8_t type_p, const std::string& target_p, const std::string& content_p):
 		request_id{rid_p},
 		type{type_p},
@@ -114,6 +115,9 @@ namespace dvr {
 		void subscribe(IFdObserver& obsv){
 			if(!broken){
 				int fd = obsv.fd();
+				if(fd < 0){
+					return;
+				}
 				::epoll_event event;
 				event.events = obsv.mask();
 				event.data.fd = fd;
@@ -130,6 +134,9 @@ namespace dvr {
 		void unsubscribe(IFdObserver& obsv){
 			if(!broken){
 				int fd = obsv.fd();
+				if( fd < 0 ){
+					return;
+				}
 				::epoll_event event;
 				event.events = obsv.mask();
 				event.data.fd = fd;
@@ -163,6 +170,7 @@ namespace dvr {
 	}
 
 	Stream::Stream(int fd):
+		is_broken{false},
 		file_descriptor{fd}
 	{}
 
@@ -170,7 +178,7 @@ namespace dvr {
 		ssize_t len = send(file_descriptor, buffer, length, 0);
 		if(len < 0){
 			close(file_descriptor);
-			file_descriptor = -1;
+			is_broken = true;
 			return 0;
 		}
 		return static_cast<size_t>(len);
@@ -180,7 +188,7 @@ namespace dvr {
 		ssize_t len = recv(file_descriptor, buffer, length, 0);
 		if(len < 0){
 			close(file_descriptor);
-			file_descriptor = -1;
+			is_broken = true;
 			return 0;
 		}
 		return static_cast<size_t>(len);
@@ -191,7 +199,7 @@ namespace dvr {
 	}
 
 	bool Stream::broken() const {
-		return file_descriptor < 0;
+		return is_broken;
 	}
 
 	StreamAcceptor::StreamAcceptor(const std::string& sp, int fd):
@@ -293,11 +301,14 @@ namespace dvr {
 
 		return 2;
 	}
+	
+	static ConnectionId next_connection_id = 0;
 
 	Connection::Connection(EventPoll& p, std::unique_ptr<Stream>&& str, IConnectionStateObserver& obsrv):
 		IFdObserver(p, str->fd(), EPOLLIN | EPOLLOUT),
 		poll{p},
 		stream{std::move(str)},
+		connection_id{++next_connection_id},
 		observer{obsrv},
 		write_ready{true},
 		read_ready{true},
@@ -402,15 +413,27 @@ namespace dvr {
 		return stream->broken();
 	}
 
-	Server::Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc):
+	const ConnectionId& Connection::id()const{
+		return connection_id;
+	}
+
+	Server::Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc, IServerStateObserver& obs):
 		IFdObserver(p, acc->fd(), EPOLLIN),
-		acceptor{std::move(acc)}
+		event_poll{p},
+		acceptor{std::move(acc)},
+		observer{obs}
 	{}
 
 	void Server::notify(uint32_t mask){
 		if(mask & EPOLLIN){
-			
+			observer.notify(*this, ServerState::Accept);
 		}
+	}
+
+	std::unique_ptr<Connection> Server::accept(IConnectionStateObserver& obsrv){
+		std::unique_ptr<Stream> stream = acceptor->accept();
+		
+		return std::make_unique<Connection>(event_poll, std::move(stream), obsrv);
 	}
 
 	const std::string& UnixSocketAddress::getPath()const{
@@ -424,7 +447,7 @@ namespace dvr {
 		ev_poll.poll();
 	}
 
-	std::unique_ptr<Server> Network::listen(const std::string& address){
+	std::unique_ptr<Server> Network::listen(const std::string& address, IServerStateObserver& obsrv){
 		auto unix_addr = parseUnixAddress(address);
 		if(!unix_addr){
 			return nullptr;
@@ -433,7 +456,7 @@ namespace dvr {
 		if(!acceptor){
 			return nullptr;
 		}
-		return std::make_unique<Server>(ev_poll, std::move(acceptor));
+		return std::make_unique<Server>(ev_poll, std::move(acceptor), obsrv);
 	}
 
 	std::unique_ptr<Connection> Network::connect(const std::string& address, IConnectionStateObserver& obsrv){
