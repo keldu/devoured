@@ -40,6 +40,9 @@ namespace dvr {
 			}
 		}
 
+		// Swapping the output streams
+		// fd[i][0] is the input/writable side when created by pipe and fd[i][1] is the output/readable side.
+		// Because the process gets fd[i][1] the writable side has to be swapped.
 		for(uint8_t i : {1,2} ){
 			int temp = fds[i][0];
 			fds[i][0] = fds[i][1];
