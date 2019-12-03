@@ -25,5 +25,5 @@ namespace dvr {
 		std::string exec_file;
 	};
 
-	int createProcessStream(const std::string& exec_file, std::unique_ptr<ProcessStream>& process_stream);
+	std::pair<std::unique_ptr<ProcessStream>,int> createProcessStream(const std::string& exec_file);
 }

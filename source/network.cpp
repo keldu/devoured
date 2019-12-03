@@ -14,12 +14,12 @@
 #include <cassert>
 #include <iostream>
 
-// Don't remember the value of 2^16 - 1 so 1024 * 64 - 1 will have to do
 const size_t read_buffer_size = 4096;
 
-const uint16_t max_message_size = 4095 - 2;
-const uint16_t max_target_size = 255;
+// 2 is the message length size
 const size_t message_length_size = 2;
+const uint16_t max_message_size = 4096 - message_length_size;
+const uint16_t max_target_size = 255;
 /*
  * So This is the rest of the max size. We have 
  * 3 uint16_t values and
