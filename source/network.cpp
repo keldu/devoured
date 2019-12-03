@@ -201,27 +201,6 @@ namespace dvr {
 		return len;
 	}
 
-	const int& Stream::fd() const{
-		return file_descriptor;
-	}
-
-	bool Stream::broken() const {
-		return is_broken;
-	}
-
-	StreamAcceptor::StreamAcceptor(const std::string& sp, int fd):
-		socket_path{sp},
-		file_descriptor{fd}
-	{
-	}
-
-	StreamAcceptor::~StreamAcceptor()
-	{
-		if(file_descriptor >= 0){
-			::unlink(socket_path.c_str());
-		}
-	}
-
 	std::unique_ptr<Stream> StreamAcceptor::accept(){
 		std::unique_ptr<Stream> stream;
 
@@ -244,7 +223,7 @@ namespace dvr {
 		bind_address{unix_addr}
 	{}
 
-	std::unique_ptr<StreamAcceptor> UnixSocketAddress::listen(){
+	std::unique_ptr<Server> UnixSocketAddress::listen(){
 		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
 		//TODO Missing errno check in every state
 
@@ -272,7 +251,7 @@ namespace dvr {
 		return std::make_unique<StreamAcceptor>(bind_address, file_descriptor);
 	}
 	
-	std::unique_ptr<Stream> UnixSocketAddress::connect(){
+	std::unique_ptr<Connection> UnixSocketAddress::connect(){
 		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
 
 		if(file_descriptor < 0){
