@@ -11,6 +11,7 @@
 
 #include "arguments/parameter.h"
 #include "signal_handler.h"
+#include "protocol.h"
 
 namespace dvr {
 	// TODO integrate in non static way. Maybe integrate this in the devoured base class
@@ -133,11 +134,7 @@ namespace dvr {
 		}
 	private:
 		void setup(){
-<<<<<<< HEAD:source/devoured.cpp
 			auto connection = network.connect(std::string{"/tmp/devoured/default"}+ user_id_string, *this);
-=======
-			auto connection = network.connect("/tmp/devoured/default", *this);
->>>>>>> master:core/devoured.cpp
 			MessageRequest msg{
 				0,
 				static_cast<uint8_t>(Parameter::Mode::STATUS),
