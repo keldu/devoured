@@ -1,5 +1,10 @@
-# devoured
+# devoured  
+## not working - check feature table below  
+
 A wrapper around bad binaries, which are not handling SIGTERM properly, are crashing when stdin is closed or don't have a proper management console. My motivation is Terraria which makes makes administration a little bit difficult with some strange behaviour.  
+
+It could be also used as a general supervisor and maybe as a test suite for submitted programming exercises, because you can extract output and inject input.  
+Test suite would need more supervisor features. Mainly some kind of possibility to create services through the daemon control socket instead of config files.  
 
 This will be a service which accepts custom commands like this one  
 Sending single commands:  
