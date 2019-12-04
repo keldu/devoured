@@ -8,12 +8,14 @@ namespace dvr {
 	public:
 		enum class Mode : uint8_t{
 			INVALID,
-			SERVICE,
+			DAEMON,
 			INTERACTIVE,
 			COMMAND,
 			ALIAS,
 			STATUS,
-			SPAWN
+			CREATE,
+			DESTROY,
+			MANAGE
 		};
 
 		//CONFIG VALUES

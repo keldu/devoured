@@ -9,41 +9,7 @@
 #include <functional>
 
 namespace dvr {
-	/* 
-	 * Don't change the Message types with out changing the corresponding max size in network.cpp
-	 * I'm wondering if there exists some kind of template magic to autogenerate the sizes
-	 * with some helper classes
-	 */
-	class MessageRequest {
-	public:
-		MessageRequest() = default;
-		MessageRequest(uint16_t, uint8_t, const std::string&, const std::string&);
-		uint16_t request_id;
-		uint8_t type;
-		std::string target;
-		std::string content;
-	};
-	/*
-	 * Same here as above
-	 */
-	class MessageResponse {
-	public:
-		MessageResponse() = default;
-		MessageResponse(uint16_t, uint8_t, const std::string&, const std::string&);
-		uint16_t request_id;
-		uint8_t return_code;
-		std::string target;
-		std::string content;
-	};
-
-	bool serializeMessageRequest(std::vector<uint8_t>& buffer, MessageRequest& request);
-	bool deserializeMessageRequest(std::vector<uint8_t>& buffer, MessageRequest& request);
-
-	bool serializeMessageResponse(std::vector<uint8_t>& buffer, MessageResponse& response);
-	bool deserializeMessageResponse(std::vector<uint8_t>& buffer, MessageResponse& response);
-
 	class UnixSocketAddress;
-	class Stream;
 	class IFdObserver;
 
 	class EventPoll {
@@ -78,41 +44,6 @@ namespace dvr {
 		uint32_t mask() const;
 	};
 
-	class Stream{
-	private:
-		int file_descriptor;
-		
-		friend struct StreamCmp;
-	public:
-		Stream(int fd);
-
-		size_t write(uint8_t* buffer, size_t n);
-		size_t read(uint8_t* buffer, size_t n);
-
-		const int& fd() const;
-
-		bool broken() const;
-	};
-	
-	struct StreamCmp {
-		bool operator()(Stream* a, Stream* b)const{
-			return a->file_descriptor < b->file_descriptor;
-		}
-	};
-	
-	class StreamAcceptor {
-	private:
-		std::string socket_path;
-		int file_descriptor;
-	public:
-		StreamAcceptor(const std::string& sp, int fd);
-		~StreamAcceptor();
-
-		std::unique_ptr<Stream> accept();
-
-		int fd();
-	};
-
 	class Connection;
 	enum class ConnectionState {
 		Broken,
@@ -127,11 +58,15 @@ namespace dvr {
 		virtual void notify(Connection& c, ConnectionState mask) = 0;
 	};
 
+	typedef uint64_t ConnectionId;
 	class Connection : public IFdObserver {
 	private:
 		EventPoll& poll;
-		std::unique_ptr<Stream> stream;
+		const ConnectionId connection_id;
 		IConnectionStateObserver& observer;
+		
+		int file_desc;
+		bool is_broken;
 
 		// non blocking helpers
 		// write buffering
@@ -149,7 +84,7 @@ namespace dvr {
 		void onReadyWrite();
 		void onReadyRead();
 	public:
-		Connection(EventPoll& p, std::unique_ptr<Stream>&& str, IConnectionStateObserver& obsrv);
+		Connection(EventPoll& p, int fd, IConnectionStateObserver& obsrv);
 		~Connection();
 
 		void notify(uint32_t mask) override;
@@ -162,20 +97,25 @@ namespace dvr {
 
 		const int& fd() const;
 		bool broken() const;
+		const ConnectionId& id() const;
 	};
 
 	enum class ServerState {
 		Accept
 	};
+	class Server;
 	class IServerStateObserver {
 	public:
-
+		virtual ~IServerStateObserver() = default;
+		virtual void notify(Server& server, ServerState state) = 0;
 	};
 	class Server : public IFdObserver {
 	private:
-		std::unique_ptr<StreamAcceptor> acceptor;
+		int file_desc;
+		EventPoll& event_poll;
+		IServerStateObserver& observer;
 	public:
-		Server(EventPoll& p, std::unique_ptr<StreamAcceptor>&& acc);
+		Server(EventPoll& p, int fd, IServerStateObserver& srv);
 
 		void notify(uint32_t mask) override;
 
@@ -191,8 +131,8 @@ namespace dvr {
 	public:
 		UnixSocketAddress(EventPoll& p, const std::string& unix_address);
 
-		std::unique_ptr<StreamAcceptor> listen();
-		std::unique_ptr<Stream> connect();
+		std::unique_ptr<Server> listen();
+		std::unique_ptr<Connection> connect();
 
 		int getFD() const;
 		const std::string& getPath() const;
@@ -206,15 +146,9 @@ namespace dvr {
 
 		void poll();
 
-		std::unique_ptr<Server> listen(const std::string& address);
+		std::unique_ptr<Server> listen(const std::string& address, IServerStateObserver& obsrv);
 		std::unique_ptr<Connection> connect(const std::string& address, IConnectionStateObserver& obsrv);
 
 		std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& unix_path);
 	};
-	
-	std::optional<MessageRequest> asyncReadRequest(Connection& connection);
-	bool asyncWriteRequest(Connection& connection, const MessageRequest& request);
-	
-	std::optional<MessageResponse> asyncReadResponse(Connection& connection);
-	bool asyncWriteResponse(Connection& connection, const MessageResponse& request);
 }

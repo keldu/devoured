@@ -40,7 +40,7 @@ namespace dvr {
 		}
 		if(config.devour){
 			++counter;
-			config.mode = Parameter::Mode::SERVICE;
+			config.mode = Parameter::Mode::DAEMON;
 		}
 		
 		if(counter == 0){

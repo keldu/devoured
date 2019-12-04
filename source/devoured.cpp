@@ -3,14 +3,29 @@
 #include <chrono>
 #include <list>
 #include <thread>
+#include <sstream>
+#include <map>
+
+#include <unistd.h>
+#include <sys/types.h>
 
 #include "arguments/parameter.h"
 #include "signal_handler.h"
 
 namespace dvr {
-	class ServiceDevoured final : public Devoured {
+	// TODO integrate in non static way. Maybe integrate this in the devoured base class
+	static uid_t user_id = 0;
+	static std::string user_id_string = "";
+
+	class ServiceDevoured final : public Devoured, public IConnectionStateObserver, public IServerStateObserver {
 	private:
 		Network network;
+
+		/*
+		 * Key - ConnId - Connection ID
+		 * Value - the connection ptr
+		 */
+		std::map<ConnectionId, std::unique_ptr<Connection>> connection_map;
 	public:
 		ServiceDevoured(const std::string& f):
 			Devoured(true, 0),
@@ -19,8 +34,27 @@ namespace dvr {
 		{}
 
 		std::chrono::steady_clock::time_point next_update;
+
+		void notify(Connection& conn, ConnectionState state) override {
+			switch(state){
+				case ConnectionState::Broken:{
+					connection_map.erase(conn.id());
+					std::cout<<"Connection unregistered in DaemonDevoured"<<std::endl;
+				}
+				break;
+			}
+		}
+
+		void notify(Server& server, ServerState state) override {
+			if( state == ServerState::Accept ){
+				auto connection = server.accept(*this);
+				ConnectionId id = connection->id();
+				connection_map.insert(std::make_pair(id, std::move(connection)));
+				std::cout<<"Connection registered in DaemonDevoured"<<std::endl;
+			}
+		}
 	protected:
-		void loop(){
+		void loop() override {
 			setup();
 			while(isActive()){
 				std::this_thread::sleep_until(next_update);
@@ -41,12 +75,12 @@ namespace dvr {
 
 		void setupControlInterface(){
 			std::string socket_path = config.control_iloc;
-			socket_path += config.control_name;
+			socket_path += config.control_name + user_id_string;
 
-			//unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
-			//TODO: Check correct file path somewhere
+			// unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
+			// TODO: Check correct file path somewhere
 
-			control_server = network.listen(socket_path);
+			control_server = network.listen(socket_path,*this);
 			if(!control_server){
 				stop();
 			}
@@ -92,21 +126,29 @@ namespace dvr {
 			(void)state;
 		}
 	protected:
-		void loop(){
+		void loop()override{
 			setup();
 			while(isActive()){
 			}
 		}
 	private:
 		void setup(){
+<<<<<<< HEAD:source/devoured.cpp
+			auto connection = network.connect(std::string{"/tmp/devoured/default"}+ user_id_string, *this);
+=======
 			auto connection = network.connect("/tmp/devoured/default", *this);
+>>>>>>> master:core/devoured.cpp
 			MessageRequest msg{
 				0,
 				static_cast<uint8_t>(Parameter::Mode::STATUS),
 				"",
 				""
 			};
-			if(!asyncWriteRequest(*connection, msg)){
+			if(connection){
+				if(!asyncWriteRequest(*connection, msg)){
+					stop();
+				}
+			}else{
 				stop();
 			}
 		}
@@ -137,6 +179,11 @@ namespace dvr {
 	}
 
 	std::unique_ptr<Devoured> createContext(int argc, char** argv){
+		user_id = ::getuid();
+		std::stringstream ss;
+		ss<<"-"<<user_id;
+		user_id_string = ss.str();
+
 		std::unique_ptr<Devoured> context;
 		const Parameter parameter = parseParams(argc, argv);
 
@@ -145,11 +192,11 @@ namespace dvr {
 				context = std::make_unique<InvalidDevoured>();
 				break;
 			}
-			case Parameter::Mode::SERVICE:{
+			case Parameter::Mode::DAEMON:{
 				context = std::make_unique<ServiceDevoured>("config.toml");
 				break;
 			}
-			case Parameter::Mode::SPAWN:{
+			case Parameter::Mode::CREATE:{
 				context = std::make_unique<SpawnDevoured>();
 				break;
 			}
