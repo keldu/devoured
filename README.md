@@ -21,7 +21,7 @@ Currently not working, but the general layout is done. Just have to write a prop
 
 | Feature	| Status	|
 |-----------|-----------|
-| Network	| :heavy_check_mark: |
+| Network	| 			|
 | Forking	| :heavy_check_mark: |
 | Daemon	| :heavy_check_mark: |
 | Status	|			|
