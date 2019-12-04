@@ -13,7 +13,7 @@ for an interactive shell.
 Starting the daemon with.  
 `devoured -d`  
 The scheme how to start the services may be based on something like  
-`devoured -n -t terraria`  
+`devoured -m "start" -t terraria`  
 
 Currently not working, but the general layout is done. Just have to write a proper management socket for devoured.  
 
