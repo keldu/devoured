@@ -9,10 +9,18 @@ bool shutdown_requested(){
 }
 
 void signal_handler(int sig){
-	(void)sig;
-	shutdown_status = 1;
+	switch(sig){
+		case SIGINT: shutdown_status = 1; break;
+		case SIGPIPE: break;
+		case SIGCHLD: break;
+	}
+}
+
+void signal_ignore_handler(){
 }
 
 void register_signal_handlers(){
 	::signal(SIGINT, signal_handler);
+	::signal(SIGPIPE, signal_handler);
+	::signal(SIGCHLD, signal_handler);
 }
