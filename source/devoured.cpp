@@ -1,11 +1,11 @@
 #include "devoured.h"
+
 #include <iostream>
 #include <chrono>
 #include <list>
 #include <thread>
 #include <sstream>
 #include <map>
-
 #include <unistd.h>
 #include <sys/types.h>
 
@@ -26,6 +26,7 @@ namespace dvr {
 		 * Key - ConnId - Connection ID
 		 * Value - the connection ptr
 		 */
+		
 		std::map<ConnectionId, std::unique_ptr<Connection>> connection_map;
 	public:
 		ServiceDevoured(const std::string& f):
@@ -134,7 +135,7 @@ namespace dvr {
 		}
 	private:
 		void setup(){
-			auto connection = network.connect(std::string{"/tmp/devoured/default"}+ user_id_string, *this);
+			auto connection = network.connect(std::string{"/tmp/devoured/default"}+user_id_string, *this);
 			MessageRequest msg{
 				0,
 				static_cast<uint8_t>(Parameter::Mode::STATUS),

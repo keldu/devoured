@@ -14,7 +14,7 @@ namespace dvr {
 
 	class EventPoll {
 	private:
-		// Impl Pattern
+		// PImpl Pattern, because of platform specific implementations
 		class Impl;
 		std::unique_ptr<Impl> impl;
 	public:
@@ -30,7 +30,7 @@ namespace dvr {
 	class IFdObserver {
 	private:
 		EventPoll& poll;
-		int file_desc;
+		const int file_desc;
 		uint32_t event_mask;
 
 		friend class EventPoll;
@@ -71,16 +71,14 @@ namespace dvr {
 		// non blocking helpers
 		// write buffering
 		bool write_ready;
+		size_t already_written;
 		std::vector<uint8_t> write_buffer;
 
 		// read buffering 
 		bool read_ready;
-
-		std::queue<std::vector<uint8_t>> ready_reads;
-		size_t read_offset;
-		size_t next_message_size;
+		size_t already_read;
 		std::vector<uint8_t> read_buffer;
-
+		//
 		void onReadyWrite();
 		void onReadyRead();
 	public:
@@ -89,14 +87,26 @@ namespace dvr {
 
 		void notify(uint32_t mask) override;
 
-		void write(std::vector<uint8_t>& buffer);
+		/*
+		 * move buffer to the writeQueue
+		 */
+		void write(std::vector<uint8_t>&& buffer);
 		bool hasWriteQueued() const;
 		
-		std::optional<std::vector<uint8_t>> read();
+		/* 
+		 * get front buffer in read and the already read hint.
+		 */
+		std::optional<uint8_t*> read(size_t n);
+		void consumeRead(size_t n);
 		bool hasReadQueued() const;
 
+		/*
+		 * checks if stream is broken or not
+		 */
 		const int& fd() const;
+		void close();
 		bool broken() const;
+		
 		const ConnectionId& id() const;
 	};
 
@@ -131,8 +141,8 @@ namespace dvr {
 	public:
 		UnixSocketAddress(EventPoll& p, const std::string& unix_address);
 
-		std::unique_ptr<Server> listen();
-		std::unique_ptr<Connection> connect();
+		std::unique_ptr<Server> listen(IServerStateObserver& obsrv);
+		std::unique_ptr<Connection> connect(IConnectionStateObserver& obsrv);
 
 		int getFD() const;
 		const std::string& getPath() const;
@@ -141,6 +151,8 @@ namespace dvr {
 	class Network {
 	private:
 		EventPoll ev_poll;
+		
+		std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& unix_path);
 	public:
 		Network();
 
@@ -149,6 +161,5 @@ namespace dvr {
 		std::unique_ptr<Server> listen(const std::string& address, IServerStateObserver& obsrv);
 		std::unique_ptr<Connection> connect(const std::string& address, IConnectionStateObserver& obsrv);
 
-		std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& unix_path);
 	};
 }

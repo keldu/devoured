@@ -29,10 +29,10 @@ namespace dvr {
 		content{content_p}
 	{}
 
+	// error checks are already done on a higher level set of functions
 	size_t deserialize(uint8_t* buffer, uint16_t& value){
 		uint16_t& buffer_value = *reinterpret_cast<uint16_t*>(buffer);
 		value = le16toh(buffer_value);
-
 		return 2;
 	}
 	
@@ -46,7 +46,6 @@ namespace dvr {
 		return shift + val_size;
 	}
 	
-	// endian.h conversion
 	size_t serialize(uint8_t* buffer, uint16_t value){
 		uint16_t& val_buffer = *reinterpret_cast<uint16_t*>(buffer);
 		val_buffer = htole16(value);
@@ -58,32 +57,39 @@ namespace dvr {
 		for(size_t i = 0; i < value.size(); ++i){
 			buffer[shift + i] = static_cast<uint8_t>(value[i]);
 		}
-
 		return shift + value.size();
 	}
 
 	std::optional<MessageRequest> asyncReadRequest(Connection& connection){
-		if(connection.hasReadQueued()){
-			MessageRequest msg;
-			auto opt_buffer = connection.read();
-			auto& buffer = *opt_buffer;
-			if( buffer.size() >= 2 ){
-				uint16_t msg_size;
-				size_t shift = deserialize(&buffer[0], msg_size);
-				if( msg_size < max_message_size ){
-					shift += deserialize(&buffer[shift], msg.request_id);
-					msg.type = buffer[shift++];
-					shift += deserialize(&buffer[shift], msg.target);
-					if( msg.target.size() < max_target_size ){
-						shift += deserialize(&buffer[shift], msg.content);
-						if( msg.content.size() < max_request_content_size ){
-							return msg;
-						}
-					}
-				}
-			}
+		auto opt_buffer = connection.read(message_length_size);
+		if(!opt_buffer.has_value()){
+			return std::nullopt;
 		}
-		return std::nullopt;
+		
+		uint16_t msg_size;
+		size_t shift = deserialize(*opt_buffer, msg_size);
+		if(msg_size >= max_message_size){
+			return std::nullopt;
+		}
+
+		opt_buffer = connection.read(message_length_size+msg_size);
+		if(!opt_buffer.has_value()){
+			return std::nullopt;
+		}
+		MessageRequest msg;
+		uint8_t* buffer = *opt_buffer;
+		shift += deserialize(&(buffer)[shift], msg.request_id);
+		msg.type = buffer[shift++];
+		shift += deserialize(&buffer[shift], msg.target);
+		if( msg.target.size() >= max_target_size ){
+			return std::nullopt;
+		}
+
+		shift += deserialize(&buffer[shift], msg.content);
+		if( msg.content.size() >= max_request_content_size ){
+			return std::nullopt;
+		}
+		return msg;
 	}
 
 	bool asyncWriteRequest(Connection& connection, const MessageRequest& request){
@@ -100,7 +106,7 @@ namespace dvr {
 			shift += serialize(&buffer[shift], request.target);
 			shift += serialize(&buffer[shift], request.content);
 
-			connection.write(buffer);
+			connection.write(std::move(buffer));
 			return true;
 		}else{
 			return false;
@@ -108,27 +114,35 @@ namespace dvr {
 	}
 
 	std::optional<MessageResponse> asyncReadResponse(Connection& connection){
-		if(connection.hasReadQueued()){
-			MessageResponse msg;
-			auto opt_buffer = connection.read();
-			auto& buffer = *opt_buffer;
-			if( buffer.size() >= 2 ){
-				uint16_t msg_size;
-				size_t shift = deserialize(&buffer[0], msg_size);
-				if( msg_size < max_message_size ){
-					shift += deserialize(&buffer[shift], msg.request_id);
-					msg.return_code = buffer[shift++];
-					shift += deserialize(&buffer[shift], msg.target);
-					if( msg.target.size() < max_target_size ){
-						shift += deserialize(&buffer[shift], msg.content);
-						if( msg.content.size() < max_request_content_size ){
-							return msg;
-						}
-					}
-				}
-			}
+		auto opt_buffer = connection.read(message_length_size);
+		if(!opt_buffer.has_value()){
+			return std::nullopt;
 		}
-		return std::nullopt;
+		
+		uint16_t msg_size;
+		size_t shift = deserialize(*opt_buffer, msg_size);
+		if(msg_size >= max_message_size){
+			return std::nullopt;
+		}
+
+		opt_buffer = connection.read(message_length_size+msg_size);
+		if(!opt_buffer.has_value()){
+			return std::nullopt;
+		}
+		MessageResponse msg;
+		uint8_t* buffer = *opt_buffer;
+		shift += deserialize(&(buffer)[shift], msg.request_id);
+		msg.return_code = buffer[shift++];
+		shift += deserialize(&buffer[shift], msg.target);
+		if( msg.target.size() >= max_target_size ){
+			return std::nullopt;
+		}
+
+		shift += deserialize(&buffer[shift], msg.content);
+		if( msg.content.size() >= max_request_content_size ){
+			return std::nullopt;
+		}
+		return msg;
 	}
 
 	bool asyncWriteResponse(Connection& connection, const MessageResponse& request){
@@ -144,7 +158,7 @@ namespace dvr {
 			shift += serialize(&buffer[shift], request.target);
 			shift += serialize(&buffer[shift], request.content);
 
-			connection.write(buffer);
+			connection.write(std::move(buffer));
 			return true;
 		}else{
 			return false;
