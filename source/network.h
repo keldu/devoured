@@ -123,9 +123,11 @@ namespace dvr {
 	private:
 		int file_desc;
 		EventPoll& event_poll;
+		const std::string address;
 		IServerStateObserver& observer;
 	public:
-		Server(EventPoll& p, int fd, IServerStateObserver& srv);
+		Server(EventPoll& p, int fd, const std::string& addr, IServerStateObserver& srv);
+		~Server();
 
 		void notify(uint32_t mask) override;
 

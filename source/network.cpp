@@ -168,7 +168,7 @@ namespace dvr {
 
 		::listen(file_descriptor, SOMAXCONN);
 
-		return std::make_unique<Server>(poll, file_descriptor, obsrv);
+		return std::make_unique<Server>(poll, file_descriptor, bind_address, obsrv);
 	}
 	
 	std::unique_ptr<Connection> UnixSocketAddress::connect(IConnectionStateObserver& obsrv){
@@ -345,11 +345,16 @@ namespace dvr {
 		return connection_id;
 	}
 
-	Server::Server(EventPoll& p, int fd, IServerStateObserver& obs):
+	Server::Server(EventPoll& p, int fd, const std::string& addr, IServerStateObserver& obs):
 		IFdObserver(p, fd, EPOLLIN),
 		event_poll{p},
+		address{addr},
 		observer{obs}
 	{}
+
+	Server::~Server(){
+		::unlink(address.c_str());
+	}
 
 	void Server::notify(uint32_t mask){
 		if(mask & EPOLLIN){
