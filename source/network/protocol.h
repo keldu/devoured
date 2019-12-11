@@ -37,7 +37,6 @@ namespace dvr {
 		uint8_t return_code;
 		std::string target;
 		std::string content;
-
 	};
 
 	std::ostream& operator<<(std::ostream& stream, const MessageRequest& request);

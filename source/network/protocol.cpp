@@ -53,7 +53,6 @@ namespace dvr {
 		stream<<"Content: "<<response.content<<std::endl;
 		return stream;
 	}
-
 	// error checks are already done on a higher level set of functions
 	size_t deserialize(uint8_t* buffer, uint16_t& value){
 		uint16_t& buffer_value = *reinterpret_cast<uint16_t*>(buffer);

@@ -14,7 +14,6 @@ namespace dvr {
 			DAEMON,
 			STATUS
 		};
-
 		Devoured(bool act, int sta);
 		virtual ~Devoured() = default;
 

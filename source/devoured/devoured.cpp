@@ -78,8 +78,9 @@ namespace dvr {
 			},
 			next_update{std::chrono::steady_clock::now()},
 			config_path{f}
-		{}
-
+    {}
+    
+		std::chrono::steady_clock::time_point next_update;
 
 		void notify(Connection& conn, ConnectionState state) override {
 			switch(state){
