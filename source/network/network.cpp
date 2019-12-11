@@ -265,7 +265,7 @@ namespace dvr {
 	}
 
 	void Connection::onReadyWrite(){
-		do{
+		while(write_ready && write_buffer.size() > 0){
 			ssize_t n = ::send(file_desc, write_buffer.data(), write_buffer.size(), MSG_NOSIGNAL);
 			if(n<0){
 				if(errno != EAGAIN){
@@ -287,7 +287,7 @@ namespace dvr {
 			}
 			write_buffer.resize(remaining);
 			remaining = 0;
-		}while(write_ready);
+		}
 	}
 
 	void Connection::onReadyRead(){
@@ -315,7 +315,7 @@ namespace dvr {
 	}
 
 	std::optional<uint8_t*> Connection::read(size_t n){
-		if(read_buffer.size() < n){
+		if(already_read < n){
 			if( read_ready ){
 				onReadyRead();
 				return read(n);
@@ -332,7 +332,7 @@ namespace dvr {
 		for(size_t i = 0; i < remaining; ++i){
 			read_buffer[i] = read_buffer[i+n];
 		}
-		assert(already_read>n);
+		assert(already_read>=n);
 		already_read -= n;
 	}
 
@@ -350,10 +350,15 @@ namespace dvr {
 
 	Server::Server(EventPoll& p, int fd, const std::string& addr, IServerStateObserver& obs):
 		IFdObserver(p, fd, EPOLLIN),
+		file_desc{fd},
 		event_poll{p},
 		address{addr},
 		observer{obs}
-	{}
+	{
+#ifdef NDEBUG
+		::unlink(address.c_str());
+#endif
+	}
 
 	Server::~Server(){
 		::unlink(address.c_str());

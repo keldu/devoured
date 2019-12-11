@@ -9,6 +9,12 @@
 namespace dvr {
 	class Devoured {
 	public:
+		enum class Mode: uint8_t {
+			INVALID,
+			DAEMON,
+			STATUS
+		};
+
 		Devoured(bool act, int sta);
 		virtual ~Devoured() = default;
 

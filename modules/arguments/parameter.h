@@ -3,16 +3,19 @@
 #include <string>
 #include <optional>
 
+#include "devoured/devoured.h"
+
 namespace dvr {
 	struct Parameter{
 	public:
+		// TODO Use the enum class Devoured::Mode and remove this later on
 		enum class Mode : uint8_t{
 			INVALID,
 			DAEMON,
+			STATUS,
 			INTERACTIVE,
 			COMMAND,
 			ALIAS,
-			STATUS,
 			CREATE,
 			DESTROY,
 			MANAGE
