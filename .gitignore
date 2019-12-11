@@ -7,7 +7,7 @@
 
 
 # bin
-devoured
+bin/
 
 # ide stuff
 compile_commands.json
