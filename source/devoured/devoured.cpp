@@ -50,9 +50,11 @@ namespace dvr {
 		void notify(Server& server, ServerState state) override {
 			if( state == ServerState::Accept ){
 				auto connection = server.accept(*this);
-				ConnectionId id = connection->id();
-				connection_map.insert(std::make_pair(id, std::move(connection)));
-				std::cout<<"Connection registered in DaemonDevoured"<<std::endl;
+				if(connection){
+					ConnectionId id = connection->id();
+					connection_map.insert(std::make_pair(id, std::move(connection)));
+					std::cout<<"Connection registered in DaemonDevoured"<<std::endl;
+				}
 			}
 		}
 	protected:
