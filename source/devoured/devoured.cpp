@@ -120,14 +120,21 @@ namespace dvr {
 	class StatusDevoured final : public Devoured, public IConnectionStateObserver {
 	private:
 		Network network;
+
+		uint16_t req_id;
 	public:
 		StatusDevoured():
-			Devoured(true, 0)
+			Devoured(true, 0),
+			req_id{0}
 		{}
 
 		void notify(Connection& conn, ConnectionState state) override {
-			(void)conn;
-			(void)state;
+			if(state == ConnectionState::ReadReady){
+				auto opt_msg = asyncReadResponse(conn);
+				if(opt_msg.has_value()){
+					std::cout<<(*opt_msg)<<std::endl;
+				}
+			}
 		}
 	protected:
 		void loop()override{

@@ -32,7 +32,11 @@ namespace dvr {
 		uint8_t return_code;
 		std::string target;
 		std::string content;
+
 	};
+
+	std::ostream& operator<<(std::ostream& stream, const MessageRequest& request);
+	std::ostream& operator<<(std::ostream& stream, const MessageResponse& response);
 
 	bool serializeMessageRequest(std::vector<uint8_t>& buffer, MessageRequest& request);
 	bool deserializeMessageRequest(std::vector<uint8_t>& buffer, MessageRequest& request);

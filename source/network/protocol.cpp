@@ -2,6 +2,8 @@
 
 #include "network.h"
 
+#include <iostream>
+
 // 2 is the message length size
 const size_t message_length_size = 2;
 const uint16_t max_message_size = 4096 - message_length_size;
@@ -28,6 +30,29 @@ namespace dvr {
 		target{target_p},
 		content{content_p}
 	{}
+
+	MessageResponse::MessageResponse(uint16_t rid_p, uint8_t rc_p, const std::string& target_p, const std::string& content_p):
+		request_id{rid_p},
+		return_code{rc_p},
+		target{target_p},
+		content{content_p}
+	{}
+
+	std::ostream& operator<<(std::ostream& stream, const MessageRequest& request){
+		stream<<"Request ID: "<<std::to_string(request.request_id)<<"\n";
+		stream<<"Type: "<<std::to_string(request.type)<<"\n";
+		stream<<"Target: "<<request.target<<"\n";
+		stream<<"Content: "<<request.content<<std::endl;
+		return stream;
+	}
+
+	std::ostream& operator<<(std::ostream& stream, const MessageResponse& response){
+		stream<<"Request ID: "<<std::to_string(response.request_id)<<"\n";
+		stream<<"Type: "<<std::to_string(response.return_code)<<"\n";
+		stream<<"Target: "<<response.target<<"\n";
+		stream<<"Content: "<<response.content<<std::endl;
+		return stream;
+	}
 
 	// error checks are already done on a higher level set of functions
 	size_t deserialize(uint8_t* buffer, uint16_t& value){
