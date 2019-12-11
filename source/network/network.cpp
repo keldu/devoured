@@ -15,7 +15,7 @@
 #include <iostream>
 
 const size_t read_buffer_size = 4096;
-
+const size_t write_buffer_size = 4096;
 
 namespace dvr {
 	IFdObserver::IFdObserver(EventPoll& p, int file_d, uint32_t msk):
@@ -143,7 +143,7 @@ namespace dvr {
 		bind_address{unix_addr}
 	{}
 
-	std::unique_ptr<Server> UnixSocketAddress::listen(){
+	std::unique_ptr<Server> UnixSocketAddress::listen(IServerStateObserver& obsrv){
 		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
 		//TODO Missing errno check in every state
 
@@ -168,10 +168,10 @@ namespace dvr {
 
 		::listen(file_descriptor, SOMAXCONN);
 
-		return std::make_unique<Server>(bind_address, file_descriptor);
+		return std::make_unique<Server>(poll, file_descriptor, bind_address, obsrv);
 	}
 	
-	std::unique_ptr<Connection> UnixSocketAddress::connect(){
+	std::unique_ptr<Connection> UnixSocketAddress::connect(IConnectionStateObserver& obsrv){
 		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
 
 		if(file_descriptor < 0){
@@ -193,7 +193,7 @@ namespace dvr {
 			return nullptr;
 		}
 
-		return std::make_unique<Stream>(file_descriptor);
+		return std::make_unique<Connection>(poll, file_descriptor, obsrv);
 	}
 
 	static ConnectionId next_connection_id = 0;
@@ -206,14 +206,25 @@ namespace dvr {
 		file_desc{fd},
 		is_broken{false},
 		write_ready{true},
+		already_written{0},
 		read_ready{true},
-		read_offset{0},
-		next_message_size{0}
+		already_read{0}
 	{
 		read_buffer.resize(read_buffer_size);
 	}
 
 	Connection::~Connection(){
+		close();
+	}
+
+	void Connection::close(){
+		if(broken()){
+			return;
+		}
+		is_broken = true;
+		read_ready = false;
+		write_ready = false;
+		observer.notify(*this, ConnectionState::Broken);
 	}
 
 	/*
@@ -221,20 +232,29 @@ namespace dvr {
 	 * and queue reads and/or handle writes
 	 */
 	void Connection::notify(uint32_t mask){
+		if(broken()){
+			return;
+		}
 		if( mask & EPOLLOUT ){
+			write_ready = true;
 			onReadyWrite();
+			observer.notify(*this, ConnectionState::WriteReady);
 		}
 		if( mask & EPOLLIN ){
+			read_ready = true;
 			onReadyRead();
+			observer.notify(*this, ConnectionState::ReadReady);
 		}
 	}
 
-	void Connection::write(std::vector<uint8_t>& buffer){
+	void Connection::write(std::vector<uint8_t>&& buffer){
 		if(write_buffer.empty()){
 			write_buffer = std::move(buffer);
-		}else{
+		}else /*if (write_buffer.size() + buffer.size() <= write_buffer_size)*/{
 			write_buffer.insert(std::end(write_buffer), std::begin(buffer),std::end(buffer));
-		}
+		}/*else{
+
+		}*/
 		if(write_ready){
 			onReadyWrite();
 		}
@@ -247,72 +267,77 @@ namespace dvr {
 	void Connection::onReadyWrite(){
 		do{
 			ssize_t n = ::send(file_desc, write_buffer.data(), write_buffer.size(), MSG_NOSIGNAL);
-
-			// TODO msg handling
-			/*
-			if(stream->broken()){
-				observer.notify(*this, ConnectionState::Broken);
+			if(n<0){
+				if(errno != EAGAIN){
+					close();
+				}
+				write_ready = false;
+				return;
+			}else if (n==0){
+				close();
+				write_ready = false;
 				return;
 			}
+
+			already_written += n;
 			
-			size_t remaining = write_buffer.size() - n;
+			size_t remaining = write_buffer.size() - already_written;
 			for(size_t i = 0; i < remaining; ++i){
-				write_buffer[i] = write_buffer[i+n];
+				write_buffer[i] = write_buffer[already_written+i];
 			}
 			write_buffer.resize(remaining);
-			write_ready = false;
-			*/
+			remaining = 0;
 		}while(write_ready);
 	}
 
 	void Connection::onReadyRead(){
+		if(broken()){
+			return;
+		}
 		do {
 			// Not yet read into the buffer
-			size_t remaining = read_buffer.size() - read_offset;
-			ssize_t n = ::recv(file_desc, &read_buffer[read_offset], remaining, 0);
+			size_t remaining = read_buffer.size() - already_read;
+			ssize_t n = ::recv(file_desc, &read_buffer[already_read], remaining, 0);
 			
-			// TODO better handling. generally don't have to read til I'm EGAIN.
-			// I just need to read correctly
-			/*
-			read_ready = false;
-			read_offset += n;
-			if( read_offset >= message_length_size ){
-				if( next_message_size < message_length_size ){
-					uint16_t tmp_msg_size;
-					deserialize(&read_buffer[read_offset], tmp_msg_size);
-					next_message_size = tmp_msg_size;
+			if(n < 0){
+				if(errno != EAGAIN){
+					close();
 				}
-				if(read_offset > next_message_size){
-					std::vector<uint8_t> next_message;
-					next_message.assign(read_buffer.begin(), read_buffer.begin()+next_message_size);
-					size_t remaining = read_offset - next_message_size;
-					for(size_t i = 0; i < remaining; ++i){
-						read_buffer[i] = read_buffer[i+next_message_size];
-					}
-					read_offset -= next_message_size;
-					next_message_size = 0;
-					ready_reads.push(std::move(next_message));
-				}
+				read_ready = false;
+				return;
+			}else if(n == 0){
+				close();
+				read_ready = false;
 			}
-			*/
+			already_read += static_cast<size_t>(n);
+
 		}while(read_ready);
 	}
 
-	std::optional<std::vector<uint8_t>> Connection::read(){
-		if(ready_reads.empty()){
+	std::optional<uint8_t*> Connection::read(size_t n){
+		if(read_buffer.size() < n){
 			if( read_ready ){
 				onReadyRead();
-				return read();
+				return read(n);
 			}
 			return std::nullopt;
 		}
-		auto front = std::move(ready_reads.front());
-		ready_reads.pop();
-		return front;
+		//auto front = std::move(read_reads.front());
+		//ready_reads.pop();
+		return read_buffer.data();
+	}
+
+	void Connection::consumeRead(size_t n){
+		size_t remaining = n < read_buffer.size()?(read_buffer.size()-n):(0);
+		for(size_t i = 0; i < remaining; ++i){
+			read_buffer[i] = read_buffer[i+n];
+		}
+		assert(already_read>n);
+		already_read -= n;
 	}
 
 	bool Connection::hasReadQueued() const{
-		return !ready_reads.empty();
+		return !read_buffer.empty();
 	}
 
 	bool Connection::broken() const {
@@ -323,11 +348,16 @@ namespace dvr {
 		return connection_id;
 	}
 
-	Server::Server(EventPoll& p, int fd, IServerStateObserver& obs):
+	Server::Server(EventPoll& p, int fd, const std::string& addr, IServerStateObserver& obs):
 		IFdObserver(p, fd, EPOLLIN),
 		event_poll{p},
+		address{addr},
 		observer{obs}
 	{}
+
+	Server::~Server(){
+		::unlink(address.c_str());
+	}
 
 	void Server::notify(uint32_t mask){
 		if(mask & EPOLLIN){
@@ -366,11 +396,11 @@ namespace dvr {
 		if(!unix_addr){
 			return nullptr;
 		}
-		auto acceptor = unix_addr->listen();
+		auto acceptor = unix_addr->listen(obsrv);
 		if(!acceptor){
 			return nullptr;
 		}
-		return std::make_unique<Server>(ev_poll, std::move(acceptor), obsrv);
+		return acceptor;
 	}
 
 	std::unique_ptr<Connection> Network::connect(const std::string& address, IConnectionStateObserver& obsrv){
@@ -378,11 +408,11 @@ namespace dvr {
 		if(!unix_addr){
 			return nullptr;
 		}
-		auto stream = unix_addr->connect();
+		auto stream = unix_addr->connect(obsrv);
 		if(!stream){
 			return nullptr;
 		}
-		return std::make_unique<Connection>(ev_poll, std::move(stream), obsrv);
+		return stream;
 	}
 
 	std::unique_ptr<UnixSocketAddress> Network::parseUnixAddress(const std::string& unix_path){

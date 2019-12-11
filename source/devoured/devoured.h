@@ -3,7 +3,7 @@
 #include <memory>
 #include <set>
 
-#include "network.h"
+#include "network/network.h"
 #include "config/config.h"
 
 namespace dvr {
