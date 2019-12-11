@@ -232,6 +232,9 @@ namespace dvr {
 	 * and queue reads and/or handle writes
 	 */
 	void Connection::notify(uint32_t mask){
+		if(broken()){
+			return;
+		}
 		if( mask & EPOLLOUT ){
 			write_ready = true;
 			onReadyWrite();
