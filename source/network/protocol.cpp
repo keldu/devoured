@@ -2,6 +2,8 @@
 
 #include "network.h"
 
+#include <iostream>
+
 // 2 is the message length size
 const size_t message_length_size = 2;
 const uint16_t max_message_size = 4096 - message_length_size;
@@ -15,10 +17,10 @@ const uint16_t max_target_size = 255;
  * Check with a calculator if you change this or sth similar :)
  */
 
-const uint16_t request_static_size = 4 * 64;
+const uint16_t request_static_size = 7;
 const uint16_t max_request_content_size = max_message_size - max_target_size - request_static_size;
 // Is by coincidence the same
-const uint16_t response_static_size = 4 * 64;
+const uint16_t response_static_size = 7;
 const uint16_t max_response_content_size = max_message_size - max_target_size - response_static_size;
 
 namespace dvr {
@@ -29,6 +31,28 @@ namespace dvr {
 		content{content_p}
 	{}
 
+	MessageResponse::MessageResponse(uint16_t rid_p, uint8_t rc_p, const std::string& target_p, const std::string& content_p):
+		request_id{rid_p},
+		return_code{rc_p},
+		target{target_p},
+		content{content_p}
+	{}
+
+	std::ostream& operator<<(std::ostream& stream, const MessageRequest& request){
+		stream<<"Request ID: "<<std::to_string(request.request_id)<<"\n";
+		stream<<"Type: "<<std::to_string(request.type)<<"\n";
+		stream<<"Target: "<<request.target<<"\n";
+		stream<<"Content: "<<request.content<<std::endl;
+		return stream;
+	}
+
+	std::ostream& operator<<(std::ostream& stream, const MessageResponse& response){
+		stream<<"Request ID: "<<std::to_string(response.request_id)<<"\n";
+		stream<<"Type: "<<std::to_string(response.return_code)<<"\n";
+		stream<<"Target: "<<response.target<<"\n";
+		stream<<"Content: "<<response.content<<std::endl;
+		return stream;
+	}
 	// error checks are already done on a higher level set of functions
 	size_t deserialize(uint8_t* buffer, uint16_t& value){
 		uint16_t& buffer_value = *reinterpret_cast<uint16_t*>(buffer);
@@ -89,6 +113,7 @@ namespace dvr {
 		if( msg.content.size() >= max_request_content_size ){
 			return std::nullopt;
 		}
+		connection.consumeRead(shift);
 		return msg;
 	}
 
@@ -99,12 +124,15 @@ namespace dvr {
 
 		if( msg_size < max_message_size && ct_size < max_request_content_size && tg_size < max_target_size ){
 			std::vector<uint8_t> buffer;
-			buffer.resize(msg_size);
+			buffer.resize(message_length_size+msg_size);
 
-			size_t shift = serialize(&buffer[0], request.request_id);
+			size_t shift = serialize(&buffer[0], msg_size);
+			shift += serialize(&buffer[shift], request.request_id);
 			buffer[shift++] = request.type;
 			shift += serialize(&buffer[shift], request.target);
 			shift += serialize(&buffer[shift], request.content);
+
+			std::cout<<request<<std::endl<<"Length: "<<ct_size<<" "<<tg_size<<" "<<msg_size<<std::endl;
 
 			connection.write(std::move(buffer));
 			return true;
@@ -142,6 +170,7 @@ namespace dvr {
 		if( msg.content.size() >= max_request_content_size ){
 			return std::nullopt;
 		}
+		connection.consumeRead(shift);
 		return msg;
 	}
 
@@ -151,9 +180,10 @@ namespace dvr {
 		const size_t msg_size = ct_size + tg_size + request_static_size;
 		if( msg_size < max_message_size && ct_size < max_request_content_size && tg_size < max_target_size ){
 			std::vector<uint8_t> buffer;
-			buffer.resize(msg_size);
+			buffer.resize(message_length_size+msg_size);
 
-			size_t shift = serialize(&buffer[0], request.request_id);
+			size_t shift = serialize(&buffer[0], msg_size);
+			shift += serialize(&buffer[shift], request.request_id);
 			buffer[shift++] = request.return_code;
 			shift += serialize(&buffer[shift], request.target);
 			shift += serialize(&buffer[shift], request.content);
