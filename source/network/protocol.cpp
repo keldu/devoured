@@ -132,8 +132,6 @@ namespace dvr {
 			shift += serialize(&buffer[shift], request.target);
 			shift += serialize(&buffer[shift], request.content);
 
-			std::cout<<request<<std::endl<<"Length: "<<ct_size<<" "<<tg_size<<" "<<msg_size<<std::endl;
-
 			connection.write(std::move(buffer));
 			return true;
 		}else{
