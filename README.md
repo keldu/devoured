@@ -22,14 +22,14 @@ The scheme how to start the services may be based on something like
 
 Currently not working, but the general layout is done. Just have to write a proper management socket for devoured.  
 
-### List of features and their status  
+### List of features and their status for basic functionality  
 
 | Feature	| Status	|
 |-----------|-----------|
 | Network	| :heavy_check_mark: |
 | Forking	| :heavy_check_mark: |
 | Daemon	| :heavy_check_mark: |
-| Status	|			|
+| Status	| :heavy_check_mark: |
 | Spawn		|			|
 | Service Configuration |		|
 | Command	|			|

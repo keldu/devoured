@@ -48,7 +48,7 @@ namespace dvr {
 
 	std::ostream& operator<<(std::ostream& stream, const MessageResponse& response){
 		stream<<"Request ID: "<<std::to_string(response.request_id)<<"\n";
-		stream<<"Type: "<<std::to_string(response.return_code)<<"\n";
+		stream<<"ReturnCode: "<<std::to_string(response.return_code)<<"\n";
 		stream<<"Target: "<<response.target<<"\n";
 		stream<<"Content: "<<response.content<<std::endl;
 		return stream;

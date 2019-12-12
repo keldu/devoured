@@ -49,14 +49,23 @@ namespace dvr {
 					req.request_id,
 					static_cast<uint8_t>(ReturnCode::OK),
 					req.target,
-					"Test ok"
+					"Currently no service registered"
 				};
 				if(!asyncWriteResponse(connection, resp)){
 					std::cerr<<"Response in error mode"<<std::endl;
 					stop();
 				}
 			}else if(req.target == "devoured"){
-
+				MessageResponse resp{
+					req.request_id,
+					static_cast<uint8_t>(ReturnCode::OK),
+					req.target,
+					"Devoured feels ok. Thanks for asking"
+				};
+				if(!asyncWriteResponse(connection, resp)){
+					std::cerr<<"Response in error mode"<<std::endl;
+					stop();
+				}
 			}else{
 				MessageResponse resp{
 					req.request_id,
@@ -78,10 +87,8 @@ namespace dvr {
 			},
 			next_update{std::chrono::steady_clock::now()},
 			config_path{f}
-    {}
+    	{}
     
-		std::chrono::steady_clock::time_point next_update;
-
 		void notify(Connection& conn, ConnectionState state) override {
 			switch(state){
 				case ConnectionState::Broken:{
@@ -182,12 +189,15 @@ namespace dvr {
 		std::unique_ptr<Connection> connection;
 		
 		std::chrono::steady_clock::time_point next_update;
+		
+		const std::string target;
 	public:
-		StatusDevoured():
+		StatusDevoured(const Parameter& params):
 			Devoured(true, 0),
 			req_id{0},
 			connection{nullptr},
-			next_update{std::chrono::steady_clock::now()}
+			next_update{std::chrono::steady_clock::now()},
+			target{params.target.has_value()?(*params.target):""}
 		{}
 
 		void notify(Connection& conn, ConnectionState state) override {
@@ -224,7 +234,7 @@ namespace dvr {
 			MessageRequest msg{
 				0,
 				static_cast<uint8_t>(Parameter::Mode::STATUS),
-				"",
+				target,
 				""
 			};
 			if(connection){
@@ -269,7 +279,6 @@ namespace dvr {
 
 		std::unique_ptr<Devoured> context;
 		const Parameter parameter = parseParams(argc, argv);
-
 		switch(parameter.mode){
 			case Parameter::Mode::INVALID:{
 				context = std::make_unique<InvalidDevoured>();
@@ -284,7 +293,7 @@ namespace dvr {
 				break;
 			}
 			case Parameter::Mode::STATUS: {
-				context = std::make_unique<StatusDevoured>();
+				context = std::make_unique<StatusDevoured>(parameter);
 				break;
 			}
 			default:{
