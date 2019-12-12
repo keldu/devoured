@@ -12,8 +12,8 @@ namespace dvr {
 			("c,command", "sends a command", cxxopts::value<std::optional<std::string>>(params.command))
 			("a,alias", "an aliased command", cxxopts::value<std::optional<std::string>>(params.alias))
 			("d,devour", "wrap a binary and execute it", cxxopts::value<bool>(params.devour))
-			("t,target", "name of the session", cxxopts::value<std::optional<std::string>>(params.target))
-			("n,new", "create a new devoured session", cxxopts::value<bool>(params.spawn))
+			("t,target", "name of the service", cxxopts::value<std::optional<std::string>>(params.target))
+			("m,manage", "manage devoured services", cxxopts::value<std::optional<std::string>>(params.manage))
 		;
 
 		return options;
@@ -24,29 +24,34 @@ namespace dvr {
 
 		if(config.interactive){
 			++counter;
-			config.mode = Parameter::Mode::INTERACTIVE;
+			//config.mode = Devoured::Mode::INTERACTIVE;
 		}
 		if(config.status){
 			++counter;
-			config.mode = Parameter::Mode::STATUS;
+			config.mode = Devoured::Mode::STATUS;
 		}
 		if(config.command.has_value()){
 			++counter;
-			config.mode = Parameter::Mode::COMMAND;
+			//config.mode = Devoured::Mode::COMMAND;
 		}
 		if(config.alias.has_value()){
 			++counter;
-			config.mode = Parameter::Mode::ALIAS;
+			//config.mode = Devoured::Mode::ALIAS;
+		}
+		if(config.manage.has_value()){
+			++counter;
+			config.mode = Devoured::Mode::MANAGE;
 		}
 		if(config.devour){
 			++counter;
-			config.mode = Parameter::Mode::DAEMON;
+			config.mode = Devoured::Mode::DAEMON;
 		}
 		
 		if(counter == 0){
-			config.mode = Parameter::Mode::INTERACTIVE;
+			//config.mode = Parameter::Mode::INTERACTIVE;
+			config.mode = Devoured::Mode::INVALID;
 		}else if (counter > 1){
-			config.mode = Parameter::Mode::INVALID;
+			config.mode = Devoured::Mode::INVALID;
 			std::cerr<<"Specified more than one top level option. Choose only one"<<std::endl;
 		}
 	}
@@ -58,7 +63,7 @@ namespace dvr {
 			auto result = options.parse(argc,argv);
 			checkDependencies(params);
 		}catch(const cxxopts::OptionException& e){
-			params.mode = Parameter::Mode::INVALID;
+			params.mode = Devoured::Mode::INVALID;
 			std::cerr<<"Error while parsing options: "<<e.what()<<std::endl;
 		}
 

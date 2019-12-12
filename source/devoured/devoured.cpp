@@ -16,6 +16,8 @@
 #include "network/protocol.h"
 
 namespace dvr {
+	const std::chrono::milliseconds sleep_interval{100};
+
 	// TODO integrate in non static way. Maybe integrate this in the devoured base class
 	static uid_t user_id = 0;
 	static std::string user_id_string = "";
@@ -38,6 +40,30 @@ namespace dvr {
 		std::map<std::string, int> targets;
 		
 		std::chrono::steady_clock::time_point next_update;
+		
+		Config config;
+
+		std::unique_ptr<Server> control_server;
+		std::list<std::unique_ptr<Connection>> control_streams;
+		
+		void setup(){
+			config = parseConfig(config_path);
+			
+			setupControlInterface();
+		}
+
+		void setupControlInterface(){
+			std::string socket_path = config.control_iloc;
+			socket_path += config.control_name + user_id_string;
+
+			// unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
+			// TODO: Check correct file path somewhere
+
+			control_server = network.listen(socket_path,*this);
+			if(!control_server){
+				stop();
+			}
+		}
 
 		void handleStatus(Connection& connection, const MessageRequest& req){
 			std::cout<<"Handling status messages"<<std::endl;
@@ -45,11 +71,22 @@ namespace dvr {
 			if(t_find != targets.end()){
 
 			}else if(req.target.empty()){
+				std::string content;
+				if(targets.empty()){
+					content = "Currently no service registered";
+				}else{
+					std::stringstream ss;
+					for(auto iter = targets.begin(); iter != targets.end(); ++iter){
+						ss<<iter->first<<": "<<"set status message here"<<"\n";
+						ss<<"\tMaybe add aditional info here\n"<<std::endl;
+					}
+					content = ss.str();
+				}
 				MessageResponse resp{
 					req.request_id,
 					static_cast<uint8_t>(ReturnCode::OK),
 					req.target,
-					"Currently no service registered"
+					content
 				};
 				if(!asyncWriteResponse(connection, resp)){
 					std::cerr<<"Response in error mode"<<std::endl;
@@ -79,11 +116,30 @@ namespace dvr {
 				}
 			}
 		}
+
+		void handleManage(Connection& connection, const MessageRequest& req){
+			std::cout<<"Handling manage messages"<<std::endl;
+
+		}
+	protected:
+		void loop() override {
+			setup();
+			while(isActive()){
+				std::this_thread::sleep_until(next_update);
+				next_update += sleep_interval;
+
+				// Update all subsystems like network ...
+				network.poll();
+			}
+		}
+
+		std::string config_path;
 	public:
 		DaemonDevoured(const std::string& f):
 			Devoured(true, 0),
 			request_handlers{
-				{Devoured::Mode::STATUS,std::bind(&DaemonDevoured::handleStatus, this, std::placeholders::_1, std::placeholders::_2)}
+				{Devoured::Mode::STATUS,std::bind(&DaemonDevoured::handleStatus, this, std::placeholders::_1, std::placeholders::_2)},
+				{Devoured::Mode::MANAGE,std::bind(&DaemonDevoured::handleManage, this, std::placeholders::_1, std::placeholders::_2)}
 			},
 			next_update{std::chrono::steady_clock::now()},
 			config_path{f}
@@ -120,43 +176,6 @@ namespace dvr {
 				}
 			}
 		}
-	protected:
-		void loop() override {
-			setup();
-			while(isActive()){
-				std::this_thread::sleep_until(next_update);
-				next_update += std::chrono::milliseconds{100};
-
-				// Update all subsystems like network ...
-				network.poll();
-			}
-		}
-
-		std::string config_path;
-	private:
-		void setup(){
-			config = parseConfig(config_path);
-			
-			setupControlInterface();
-		}
-
-		void setupControlInterface(){
-			std::string socket_path = config.control_iloc;
-			socket_path += config.control_name + user_id_string;
-
-			// unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
-			// TODO: Check correct file path somewhere
-
-			control_server = network.listen(socket_path,*this);
-			if(!control_server){
-				stop();
-			}
-		}
-
-		Config config;
-
-		std::unique_ptr<Server> control_server;
-		std::list<std::unique_ptr<Connection>> control_streams;
 	};
 	
 	class InvalidDevoured final : public Devoured {
@@ -168,38 +187,47 @@ namespace dvr {
 		void loop(){}
 	};
 
-	class SpawnDevoured final : public Devoured {
-	public:
-		SpawnDevoured():
-			Devoured(true, 0)
-		{}
-	protected:
-		void loop(){
-			while(isActive()){
-			}
-		}
-	};
-
-	class StatusDevoured final : public Devoured, public IConnectionStateObserver {
+	class ManageDevoured final : public Devoured, public IConnectionStateObserver {
 	private:
 		Network network;
-
 		uint16_t req_id;
-
 		std::unique_ptr<Connection> connection;
-		
 		std::chrono::steady_clock::time_point next_update;
-		
 		const std::string target;
+		const std::string command;
+	protected:
+		void loop()override{
+			while(isActive()){
+				std::this_thread::sleep_until(next_update);
+				next_update += sleep_interval;
+				network.poll();
+			}
+		}
 	public:
-		StatusDevoured(const Parameter& params):
+		ManageDevoured(const Parameter& params):
 			Devoured(true, 0),
 			req_id{0},
 			connection{nullptr},
 			next_update{std::chrono::steady_clock::now()},
-			target{params.target.has_value()?(*params.target):""}
-		{}
-
+			target{params.target.has_value()?(*params.target):""},
+			command{params.manage.has_value()?(*params.manage):""}
+		{
+			connection = network.connect(std::string{"/tmp/devoured/default"}+user_id_string, *this);
+			MessageRequest msg{
+				0,
+				static_cast<uint8_t>(Devoured::Mode::MANAGE),
+				target,
+				command
+			};
+			if(connection){
+				if(!asyncWriteRequest(*connection, msg)){
+					stop();
+				}
+			}else{
+				stop();
+			}
+		}
+		
 		void notify(Connection& conn, ConnectionState state) override {
 			switch(state){
 				case ConnectionState::ReadReady:{
@@ -219,21 +247,36 @@ namespace dvr {
 				break;
 			}
 		}
+	};
+
+	class StatusDevoured final : public Devoured, public IConnectionStateObserver {
+	private:
+		Network network;
+		uint16_t req_id;
+		std::unique_ptr<Connection> connection;
+		std::chrono::steady_clock::time_point next_update;
+		const std::string target;
+		
 	protected:
 		void loop()override{
-			setup();
 			while(isActive()){
 				std::this_thread::sleep_until(next_update);
-				next_update += std::chrono::milliseconds{100};
+				next_update += sleep_interval;
 				network.poll();
 			}
 		}
-	private:
-		void setup(){
+	public:
+		StatusDevoured(const Parameter& params):
+			Devoured(true, 0),
+			req_id{0},
+			connection{nullptr},
+			next_update{std::chrono::steady_clock::now()},
+			target{params.target.has_value()?(*params.target):""}
+		{
 			connection = network.connect(std::string{"/tmp/devoured/default"}+user_id_string, *this);
 			MessageRequest msg{
 				0,
-				static_cast<uint8_t>(Parameter::Mode::STATUS),
+				static_cast<uint8_t>(Devoured::Mode::STATUS),
 				target,
 				""
 			};
@@ -243,6 +286,26 @@ namespace dvr {
 				}
 			}else{
 				stop();
+			}
+		}
+
+		void notify(Connection& conn, ConnectionState state) override {
+			switch(state){
+				case ConnectionState::ReadReady:{
+					auto opt_msg = asyncReadResponse(conn);
+					if(opt_msg.has_value()){
+						std::cout<<(*opt_msg)<<std::endl;
+						stop();
+					}
+				}
+				break;
+				case ConnectionState::Broken:{
+					stop();
+				}
+				break;
+				case ConnectionState::WriteReady:{
+				}
+				break;
 			}
 		}
 	};
@@ -280,20 +343,20 @@ namespace dvr {
 		std::unique_ptr<Devoured> context;
 		const Parameter parameter = parseParams(argc, argv);
 		switch(parameter.mode){
-			case Parameter::Mode::INVALID:{
+			case Devoured::Mode::INVALID:{
 				context = std::make_unique<InvalidDevoured>();
 				break;
 			}
-			case Parameter::Mode::DAEMON:{
+			case Devoured::Mode::DAEMON:{
 				context = std::make_unique<DaemonDevoured>("config.toml");
 				break;
 			}
-			case Parameter::Mode::CREATE:{
-				context = std::make_unique<SpawnDevoured>();
+			case Devoured::Mode::STATUS: {
+				context = std::make_unique<StatusDevoured>(parameter);
 				break;
 			}
-			case Parameter::Mode::STATUS: {
-				context = std::make_unique<StatusDevoured>(parameter);
+			case Devoured::Mode::MANAGE: {
+				context = std::make_unique<ManageDevoured>(parameter);
 				break;
 			}
 			default:{

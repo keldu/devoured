@@ -12,7 +12,8 @@ namespace dvr {
 		enum class Mode: uint8_t {
 			INVALID,
 			DAEMON,
-			STATUS
+			STATUS,
+			MANAGE
 		};
 		Devoured(bool act, int sta);
 		virtual ~Devoured() = default;
