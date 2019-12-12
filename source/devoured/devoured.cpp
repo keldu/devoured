@@ -125,7 +125,7 @@ namespace dvr {
 			setup();
 			while(isActive()){
 				std::this_thread::sleep_until(next_update);
-				next_update += std::chrono::milliseconds{1000};
+				next_update += std::chrono::milliseconds{100};
 
 				// Update all subsystems like network ...
 				network.poll();
@@ -224,7 +224,7 @@ namespace dvr {
 			setup();
 			while(isActive()){
 				std::this_thread::sleep_until(next_update);
-				next_update += std::chrono::milliseconds{1000};
+				next_update += std::chrono::milliseconds{100};
 				network.poll();
 			}
 		}
