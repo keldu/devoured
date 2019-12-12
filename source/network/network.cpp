@@ -160,6 +160,10 @@ namespace dvr {
 		::strncpy(local.sun_path, bind_address.c_str(), len);
 		local.sun_path[len] = 0;
 
+#ifdef NDEBUG
+		::unlink(local.sun_path);
+#endif
+
 		status = ::bind(file_descriptor, (struct ::sockaddr*)&local, sizeof(local));
 		if( status != 0){
 			std::cerr<<"Couldn't bind socket: "<<local.sun_path<<std::endl;
@@ -355,9 +359,6 @@ namespace dvr {
 		address{addr},
 		observer{obs}
 	{
-#ifdef NDEBUG
-		::unlink(address.c_str());
-#endif
 	}
 
 	Server::~Server(){
