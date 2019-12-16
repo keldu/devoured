@@ -2,9 +2,13 @@
 
 #include <array>
 #include <memory>
+#include <vector>
 
 namespace dvr {
 	class ProcessStream{
+	private:
+		pid_t process_id;
+		std::array<int,3> file_descriptors;
 	public:
 		ProcessStream(const std::string& ef, int pid, const std::array<int,3>& fds);
 
@@ -14,16 +18,12 @@ namespace dvr {
 		 *	stdout 1,
 		 *	stderr 2
 		 */
-		const std::array<int,3>& getFD() const;
+		const std::array<int,3>& getFds() const;
 		/*
 		 *	return the process id of the child
 		 */
-		int getPID() const;
-	private:
-		int process_id;
-		std::array<int,3> file_descriptors;
-		std::string exec_file;
+		pid_t getPID() const;
 	};
 
-	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file);
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments);
 }

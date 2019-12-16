@@ -15,8 +15,11 @@
 #include "signal_handler.h"
 #include "network/protocol.h"
 
+#include "service.h"
+
 namespace dvr {
 	const std::chrono::milliseconds sleep_interval{100};
+	const std::chrono::seconds single_request_timeout{10};
 
 	// TODO integrate in non static way. Maybe integrate this in the devoured base class
 	static uid_t user_id = 0;
@@ -193,6 +196,7 @@ namespace dvr {
 		uint16_t req_id;
 		std::unique_ptr<Connection> connection;
 		std::chrono::steady_clock::time_point next_update;
+		std::chrono::steady_clock::time_point response_timeout;
 		const std::string target;
 		const std::string command;
 	protected:
@@ -201,6 +205,9 @@ namespace dvr {
 				std::this_thread::sleep_until(next_update);
 				next_update += sleep_interval;
 				network.poll();
+				if(std::chrono::steady_clock::now() < response_timeout){
+					break;
+				}
 			}
 		}
 	public:
@@ -209,6 +216,7 @@ namespace dvr {
 			req_id{0},
 			connection{nullptr},
 			next_update{std::chrono::steady_clock::now()},
+			response_timeout{next_update + single_request_timeout},
 			target{params.target.has_value()?(*params.target):""},
 			command{params.manage.has_value()?(*params.manage):""}
 		{

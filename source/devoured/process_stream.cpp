@@ -8,21 +8,20 @@
 namespace dvr {
 	ProcessStream::ProcessStream(const std::string& ef, int pid, const std::array<int,3>& fds):
 		process_id{pid},
-		file_descriptors{fds},
-		exec_file{ef}
+		file_descriptors{fds}
 	{
 
 	}
 
-	int ProcessStream::getPID() const {
+	pid_t ProcessStream::getPID() const {
 		return process_id;
 	}
 	
-	const std::array<int,3>& ProcessStream::getFD() const {
+	const std::array<int,3>& ProcessStream::getFds() const {
 		return file_descriptors;
 	}
 	
-	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file){
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments){
 		std::unique_ptr<ProcessStream> process{nullptr};
 		int fds[2][3];
 
@@ -74,7 +73,19 @@ namespace dvr {
 			// For SIGTERM handling etc
 			// 
 			// Or just keep a record of service information and create the process stream only when needed.
-			execlp("terraria", "terraria", NULL);
+			std::vector<char*> arg_array;
+			arg_array.resize(arguments.size()+2);
+			arg_array.front() = const_cast<char*>(exec_file.data());
+			// Fill argument array except for the front and back
+			/*
+			for(size_t i = 1; (i+1) < arg_array.size(); ++i){
+				arg_array.at(i) = {const_cast<char*>(exec_file.data())};
+			}
+			*/
+			std::copy(arguments.begin(), arguments.end(), arg_array.begin()+1);
+			arg_array.back() = nullptr;
+
+			::execvp(exec_file.data(), arg_array.data());
 		}else{
 			for(uint8_t i = 0; i < 3; ++i){
 				close(fds[i][1]);

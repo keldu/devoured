@@ -30,7 +30,7 @@ Currently not working, but the general layout is done. Just have to write a prop
 | Forking	| :heavy_check_mark: |
 | Daemon	| :heavy_check_mark: |
 | Status	| :heavy_check_mark: |
-| Spawn		|			|
+| Manage	|			|
 | Service Configuration |		|
 | Command	|			|
 | Alias		|			|
