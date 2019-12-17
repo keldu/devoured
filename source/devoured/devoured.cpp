@@ -27,6 +27,7 @@ namespace dvr {
 
 	class DaemonDevoured final : public Devoured, public IConnectionStateObserver, public IServerStateObserver {
 	private:
+		EventPoll event_poll;
 		Network network;
 
 		std::map<Devoured::Mode, std::function<void(Connection&,const MessageRequest&)>> request_handlers;
@@ -132,7 +133,7 @@ namespace dvr {
 				next_update += sleep_interval;
 
 				// Update all subsystems like network ...
-				network.poll();
+				event_poll.poll();
 			}
 		}
 
@@ -140,6 +141,7 @@ namespace dvr {
 	public:
 		DaemonDevoured(const std::string& f):
 			Devoured(true, 0),
+			network{event_poll},
 			request_handlers{
 				{Devoured::Mode::STATUS,std::bind(&DaemonDevoured::handleStatus, this, std::placeholders::_1, std::placeholders::_2)},
 				{Devoured::Mode::MANAGE,std::bind(&DaemonDevoured::handleManage, this, std::placeholders::_1, std::placeholders::_2)}

@@ -77,9 +77,12 @@ namespace dvr {
 			arg_array.resize(arguments.size()+2);
 			arg_array.front() = const_cast<char*>(exec_file.data());
 			// Fill argument array except for the front and back
-			for(size_t i = 1; (i+1) < arg_array.size(); ++i){
+			
+			size_t arg_array_size = arg_array.size()<1?0:arg_array.size()-1;
+			for(size_t i = 1; i < arg_array_size; ++i){
 				arg_array.at(i) = {const_cast<char*>(exec_file.data())};
 			}
+			
 			arg_array.back() = nullptr;
 
 			::execvp(exec_file.data(), arg_array.data());

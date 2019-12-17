@@ -390,11 +390,9 @@ namespace dvr {
 		return bind_address;
 	}
 
-	Network::Network(){
-	}
-
-	void Network::poll(){
-		ev_poll.poll();
+	Network::Network(EventPoll& event_poll_p):
+		event_poll{event_poll_p}
+	{
 	}
 
 	std::unique_ptr<Server> Network::listen(const std::string& address, IServerStateObserver& obsrv){
@@ -422,7 +420,7 @@ namespace dvr {
 	}
 
 	std::unique_ptr<UnixSocketAddress> Network::parseUnixAddress(const std::string& unix_path){
-		return std::make_unique<UnixSocketAddress>(ev_poll, unix_path);
+		return std::make_unique<UnixSocketAddress>(event_poll, unix_path);
 	}
 
 }

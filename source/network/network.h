@@ -152,13 +152,11 @@ namespace dvr {
 	
 	class Network {
 	private:
-		EventPoll ev_poll;
+		EventPoll& event_poll;
 		
 		std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& unix_path);
 	public:
-		Network();
-
-		void poll();
+		Network(EventPoll& event_poll_p);
 
 		std::unique_ptr<Server> listen(const std::string& address, IServerStateObserver& obsrv);
 		std::unique_ptr<Connection> connect(const std::string& address, IConnectionStateObserver& obsrv);
