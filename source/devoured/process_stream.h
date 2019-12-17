@@ -10,7 +10,7 @@ namespace dvr {
 		pid_t process_id;
 		std::array<int,3> file_descriptors;
 	public:
-		ProcessStream(const std::string& ef, int pid, const std::array<int,3>& fds);
+		ProcessStream(int pid, const std::array<int,3>& fds);
 
 		/*
 		 *	returns the file descriptor from the parent side which replaced

@@ -6,7 +6,7 @@
 #include <iostream>
 
 namespace dvr {
-	ProcessStream::ProcessStream(const std::string& ef, int pid, const std::array<int,3>& fds):
+	ProcessStream::ProcessStream(int pid, const std::array<int,3>& fds):
 		process_id{pid},
 		file_descriptors{fds}
 	{
@@ -77,12 +77,9 @@ namespace dvr {
 			arg_array.resize(arguments.size()+2);
 			arg_array.front() = const_cast<char*>(exec_file.data());
 			// Fill argument array except for the front and back
-			/*
 			for(size_t i = 1; (i+1) < arg_array.size(); ++i){
 				arg_array.at(i) = {const_cast<char*>(exec_file.data())};
 			}
-			*/
-			std::copy(arguments.begin(), arguments.end(), arg_array.begin()+1);
 			arg_array.back() = nullptr;
 
 			::execvp(exec_file.data(), arg_array.data());
@@ -90,7 +87,7 @@ namespace dvr {
 			for(uint8_t i = 0; i < 3; ++i){
 				close(fds[i][1]);
 			}
-			process = std::make_unique<ProcessStream>(exec_file, pid, std::array<int,3>{fds[0][0],fds[1][0],fds[2][0]});
+			process = std::make_unique<ProcessStream>(pid, std::array<int,3>{fds[0][0],fds[1][0],fds[2][0]});
 		}
 		return process;
 	}
