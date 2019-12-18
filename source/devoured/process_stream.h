@@ -4,7 +4,8 @@
 #include <memory>
 #include <vector>
 
-#include "network/network.h"
+#include "network/event_poll.h"
+#include "network/stream.h"
 
 namespace dvr {
 	class ProcessStream {
@@ -12,6 +13,13 @@ namespace dvr {
 		pid_t process_id;
 		
 		std::array<int,3> file_descriptors;
+
+		/* TODO
+		 * will replace file_descriptors
+		 */
+		std::unique_ptr<OutputStream> std_in;
+		std::unique_ptr<InputStream> std_out;
+		std::unique_ptr<InputStream> std_err;
 	public:
 		ProcessStream(int pid, std::array<int,3>&& fds, EventPoll& event_poll);
 

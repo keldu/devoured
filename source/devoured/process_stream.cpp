@@ -6,7 +6,7 @@
 #include <iostream>
 
 namespace dvr {
-	ProcessStream::ProcessStream(int pid, const std::array<int,3>& fds):
+	ProcessStream::ProcessStream(int pid, const std::array<int,3>& fds, EventPoll& ev_poll):
 		process_id{pid},
 		file_descriptors{fds}
 	{
@@ -21,7 +21,7 @@ namespace dvr {
 		return file_descriptors;
 	}
 	
-	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments){
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments, EventPoll& ev_poll){
 		std::unique_ptr<ProcessStream> process{nullptr};
 		int fds[2][3];
 

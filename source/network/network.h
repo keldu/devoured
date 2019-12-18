@@ -9,6 +9,7 @@
 #include <functional>
 
 #include "fd_observer.h"
+#include "stream.h"
 
 namespace dvr {
 	class UnixSocketAddress;
@@ -23,7 +24,6 @@ namespace dvr {
 	};
 	class IConnectionStateObserver {
 	public:
-
 		virtual ~IConnectionStateObserver() = default;
 
 		virtual void notify(Connection& c, ConnectionState mask) = 0;
@@ -132,5 +132,6 @@ namespace dvr {
 		std::unique_ptr<Server> listen(const std::string& address, IServerStateObserver& obsrv);
 		std::unique_ptr<Connection> connect(const std::string& address, IConnectionStateObserver& obsrv);
 
+		std::unique_ptr<IoStream> connect(const std::string& address, IStreamStateObserver& obsrv);
 	};
 }

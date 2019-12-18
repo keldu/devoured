@@ -14,6 +14,7 @@
 #include "arguments/parameter.h"
 #include "signal_handler.h"
 #include "network/protocol.h"
+#include "network/event_poll.h"
 
 #include "service.h"
 
