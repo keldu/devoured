@@ -194,6 +194,7 @@ namespace dvr {
 
 	class ManageDevoured final : public Devoured, public IConnectionStateObserver {
 	private:
+		EventPoll event_poll;
 		Network network;
 		uint16_t req_id;
 		std::unique_ptr<Connection> connection;
@@ -206,7 +207,7 @@ namespace dvr {
 			while(isActive()){
 				std::this_thread::sleep_until(next_update);
 				next_update += sleep_interval;
-				network.poll();
+				event_poll.poll();
 				if(std::chrono::steady_clock::now() < response_timeout){
 					break;
 				}
@@ -215,6 +216,7 @@ namespace dvr {
 	public:
 		ManageDevoured(const Parameter& params):
 			Devoured(true, 0),
+			network{event_poll},
 			req_id{0},
 			connection{nullptr},
 			next_update{std::chrono::steady_clock::now()},
@@ -261,6 +263,7 @@ namespace dvr {
 
 	class StatusDevoured final : public Devoured, public IConnectionStateObserver {
 	private:
+		EventPoll event_poll;
 		Network network;
 		uint16_t req_id;
 		std::unique_ptr<Connection> connection;
@@ -272,12 +275,13 @@ namespace dvr {
 			while(isActive()){
 				std::this_thread::sleep_until(next_update);
 				next_update += sleep_interval;
-				network.poll();
+				event_poll.poll();
 			}
 		}
 	public:
 		StatusDevoured(const Parameter& params):
 			Devoured(true, 0),
+			network{event_poll},
 			req_id{0},
 			connection{nullptr},
 			next_update{std::chrono::steady_clock::now()},

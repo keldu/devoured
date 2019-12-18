@@ -8,41 +8,12 @@
 #include <optional>
 #include <functional>
 
+#include "fd_observer.h"
+
 namespace dvr {
 	class UnixSocketAddress;
 	class IFdObserver;
 
-	class EventPoll {
-	private:
-		// PImpl Pattern, because of platform specific implementations
-		class Impl;
-		std::unique_ptr<Impl> impl;
-	public:
-		EventPoll();
-		~EventPoll();
-
-		bool poll();
-
-		void subscribe(IFdObserver& obsv);
-		void unsubscribe(IFdObserver& obsv);
-	};
-
-	class IFdObserver {
-	private:
-		EventPoll& poll;
-		const int file_desc;
-		uint32_t event_mask;
-
-		friend class EventPoll;
-	public:
-		IFdObserver(EventPoll& poll, int fd, uint32_t mask);
-		virtual ~IFdObserver();
-
-		virtual void notify(uint32_t mask) = 0;
-
-		int fd() const;
-		uint32_t mask() const;
-	};
 
 	class Connection;
 	enum class ConnectionState {

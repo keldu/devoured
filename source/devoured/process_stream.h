@@ -7,12 +7,13 @@
 #include "network/network.h"
 
 namespace dvr {
-	class ProcessStream : public IFdObserver{
+	class ProcessStream {
 	private:
 		pid_t process_id;
+		
 		std::array<int,3> file_descriptors;
 	public:
-		ProcessStream(int pid, const std::array<int,3>& fds);
+		ProcessStream(int pid, std::array<int,3>&& fds, EventPoll& event_poll);
 
 		/*
 		 *	returns the file descriptor from the parent side which replaced
