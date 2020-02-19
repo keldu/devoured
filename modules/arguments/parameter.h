@@ -24,5 +24,4 @@ namespace dvr {
 	};
 
 	const Parameter parseParams(int argc, char** argv);
-
 }
