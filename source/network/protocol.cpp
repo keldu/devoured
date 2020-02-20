@@ -84,6 +84,7 @@ namespace dvr {
 		return shift + value.size();
 	}
 
+	/*
 	std::optional<MessageRequest> asyncReadRequest(AsyncIoStream& connection){
 		auto opt_buffer = connection.read(message_length_size);
 		if(!opt_buffer.has_value()){
@@ -192,4 +193,5 @@ namespace dvr {
 			return false;
 		}
 	}
+	*/
 }

@@ -42,18 +42,26 @@ namespace dvr {
 		std::string content;
 	};
 
+	/*
+	 * Io Stream support. Since I don't inherit std ios classes, this is mainly for std::cout, std::cerr
+	 */
 	std::ostream& operator<<(std::ostream& stream, const MessageRequest& request);
 	std::ostream& operator<<(std::ostream& stream, const MessageResponse& response);
 
+	/*
+	 * Lower level utility functions for serializing
+	 */
 	bool serializeMessageRequest(std::vector<uint8_t>& buffer, MessageRequest& request);
 	bool deserializeMessageRequest(std::vector<uint8_t>& buffer, MessageRequest& request);
 
 	bool serializeMessageResponse(std::vector<uint8_t>& buffer, MessageResponse& response);
 	bool deserializeMessageResponse(std::vector<uint8_t>& buffer, MessageResponse& response);
-	
+
+/*	Source block which used old network code.
 	std::optional<MessageRequest> asyncReadRequest(AsyncInputStream& connection);
 	bool asyncWriteRequest(AsyncOutputStream& connection, const MessageRequest& request);
 	
 	std::optional<MessageResponse> asyncReadResponse(AsyncInputStream& connection);
 	bool asyncWriteResponse(AsyncOutputStream& connection, const MessageResponse& request);
+*/
 }
