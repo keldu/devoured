@@ -49,7 +49,6 @@ namespace dvr {
 		
 		void setup(){
 			config = parseConfig(config_path);
-			
 			setupControlInterface();
 		}
 
@@ -57,15 +56,29 @@ namespace dvr {
 			std::string socket_path = config.control_iloc;
 			socket_path += config.control_name + user_id_string;
 
-			// unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
-			// TODO: Check correct file path somewhere
-			
-			/*
-			control_server = io_context.pars.listen(socket_path,*this);
-			if(!control_server){
+			std::unique_ptr<NetworkAddress> addr = io_context.provider->parseAddress(socket_path);
+			if(!addr){
 				stop();
+			}else{
+				control_server = addr->listen();
+				if(!control_server){
+					stop();
+				}else{
+					control_server->accept( ErrorOr<std::unique_ptr<AsyncIoStream>>{
+						[this](std::unique_ptr<AsyncIoStream> async){
+							// TODO CRITICAL assign id to stream
+							// !!! AND !!! create a wrapper class for the stream.
+							// Like the class ClientContext from mc_bot
+							connection_map.insert(std::make_pair(0, std::move(async)));
+						},
+						[this](const Error& error){
+							std::cerr<<"Error: "<<error.message()<<std::endl;
+							stop();
+							control_server.release();
+						}
+					});
+				}
 			}
-			*/
 		}
 
 		void handleStatus(AsyncIoStream& connection, const MessageRequest& req){

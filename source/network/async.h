@@ -125,8 +125,8 @@ namespace dvr {
 	public:
 		virtual ~NetworkAddress() = default;
 
-		virtual void listen(ErrorOr<std::unique_ptr<StreamListener>> async) = 0;
-		virtual void connect(ErrorOr<std::unique_ptr<AsyncIoStream>> async) = 0;
+		virtual std::unique_ptr<StreamListener> listen() = 0;
+		virtual std::unique_ptr<AsyncIoStream> connect() = 0;
 	};
 
 	class EventPoll {
@@ -142,7 +142,7 @@ namespace dvr {
 		virtual ~AsyncIoProvider() = default;
 
 		virtual EventPoll& eventPoll() = 0;
-		virtual void parseAddress(ErrorOr<std::unique_ptr<AsyncIoStream>> async, const std::string& addr, int32_t port_hint = 0) = 0;
+		virtual std::unique_ptr<NetworkAddress> parseAddress(const std::string& addr, int32_t port_hint = 0) = 0;
 	};
 
 	struct AsyncIoContext {
