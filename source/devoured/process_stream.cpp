@@ -98,7 +98,7 @@ namespace dvr {
 			for(uint8_t i = 0; i < 3; ++i){
 				close(fds[i][1]);
 			}
-			process = std::make_unique<ProcessStream>(pid, std::array<int,3>{fds[0][0],fds[1][0],fds[2][0]});
+			// process = std::make_unique<ProcessStream>(pid, std::array<int,3>{fds[0][0],fds[1][0],fds[2][0]});
 		}
 		return process;
 	}

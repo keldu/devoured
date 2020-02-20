@@ -25,16 +25,14 @@ namespace dvr {
 	static uid_t user_id = 0;
 	static std::string user_id_string = "";
 
-	class DaemonDevoured final : public Devoured, public IoStateObserver<Connection>, public IServerStateObserver {
+	class DaemonDevoured final : public Devoured {
 	private:
-		AsyncIoContext io_context;
-
-		std::map<Devoured::Mode, std::function<void(Connection&,const MessageRequest&)>> request_handlers;
+		std::map<Devoured::Mode, std::function<void(AsyncIoStream&,const MessageRequest&)>> request_handlers;
 		/*
-		 * Key - ConnId - Connection ID
+		 * Key - Corresponding file descriptor
 		 * Value - the connection ptr
 		 */
-		std::map<ConnectionId, std::unique_ptr<Connection>> connection_map;
+		std::map<int, std::unique_ptr<AsyncIoStream>> connection_map;
 
 		/*
 		 * Key - Target - String
@@ -46,8 +44,8 @@ namespace dvr {
 		
 		Config config;
 
-		std::unique_ptr<Server> control_server;
-		std::list<std::unique_ptr<Connection>> control_streams;
+		std::unique_ptr<StreamListener> control_server;
+		std::list<std::unique_ptr<AsyncIoStream>> control_streams;
 		
 		void setup(){
 			config = parseConfig(config_path);
@@ -61,14 +59,17 @@ namespace dvr {
 
 			// unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
 			// TODO: Check correct file path somewhere
-
-			control_server = network.listen(socket_path,*this);
+			
+			/*
+			control_server = io_context.pars.listen(socket_path,*this);
 			if(!control_server){
 				stop();
 			}
+			*/
 		}
 
 		void handleStatus(AsyncIoStream& connection, const MessageRequest& req){
+			/*
 			std::cout<<"Handling status messages"<<std::endl;
 			auto t_find = targets.find(req.target);
 			if(t_find != targets.end()){
@@ -118,9 +119,10 @@ namespace dvr {
 					stop();
 				}
 			}
+			*/
 		}
 
-		void handleManage(Connection& connection, const MessageRequest& req){
+		void handleManage(AsyncIoStream& connection, const MessageRequest& req){
 			std::cout<<"Handling manage messages"<<std::endl;
 
 		}
@@ -132,7 +134,7 @@ namespace dvr {
 				next_update += sleep_interval;
 
 				// Update all subsystems like network ...
-				event_poll.poll();
+				io_context.event_poll.poll();
 			}
 		}
 
@@ -140,7 +142,6 @@ namespace dvr {
 	public:
 		DaemonDevoured(const std::string& f):
 			Devoured(true, 0),
-			network{event_poll},
 			request_handlers{
 				{Devoured::Mode::STATUS,std::bind(&DaemonDevoured::handleStatus, this, std::placeholders::_1, std::placeholders::_2)},
 				{Devoured::Mode::MANAGE,std::bind(&DaemonDevoured::handleManage, this, std::placeholders::_1, std::placeholders::_2)}
@@ -149,6 +150,7 @@ namespace dvr {
 			config_path{f}
     	{}
     
+		/*
 		void notify(Connection& conn, IoState state) override {
 			switch(state){
 				case IoState::Broken:{
@@ -169,7 +171,9 @@ namespace dvr {
 				break;
 			}
 		}
+		*/
 
+		/*
 		void notify(Server& server, ServerState state) override {
 			if( state == ServerState::Accept ){
 				auto connection = server.accept(*this);
@@ -180,6 +184,7 @@ namespace dvr {
 				}
 			}
 		}
+		*/
 	};
 	
 	class InvalidDevoured final : public Devoured {
@@ -191,22 +196,20 @@ namespace dvr {
 		void loop(){}
 	};
 
-	class ManageDevoured final : public Devoured, public IoStateObserver<Connection> {
+	class ManageDevoured final : public Devoured {
 	private:
-		EventPoll event_poll;
-		Network network;
 		uint16_t req_id;
-		std::unique_ptr<Connection> connection;
+		std::unique_ptr<AsyncIoStream> connection;
 		std::chrono::steady_clock::time_point next_update;
 		std::chrono::steady_clock::time_point response_timeout;
 		const std::string target;
 		const std::string command;
 	protected:
-		void loop()override{
+		void loop() override {
 			while(isActive()){
 				std::this_thread::sleep_until(next_update);
 				next_update += sleep_interval;
-				event_poll.poll();
+				io_context.event_poll.poll();
 				if(std::chrono::steady_clock::now() < response_timeout){
 					break;
 				}
@@ -215,7 +218,6 @@ namespace dvr {
 	public:
 		ManageDevoured(const Parameter& params):
 			Devoured(true, 0),
-			network{event_poll},
 			req_id{0},
 			connection{nullptr},
 			next_update{std::chrono::steady_clock::now()},
@@ -223,6 +225,7 @@ namespace dvr {
 			target{params.target.has_value()?(*params.target):""},
 			command{params.manage.has_value()?(*params.manage):""}
 		{
+			/*
 			connection = network.connect(std::string{"/tmp/devoured/default"}+user_id_string, *this);
 			MessageRequest msg{
 				0,
@@ -237,8 +240,10 @@ namespace dvr {
 			}else{
 				stop();
 			}
+			*/
 		}
 		
+		/*
 		void notify(Connection& conn, IoState state) override {
 			switch(state){
 				case IoState::ReadReady:{
@@ -258,14 +263,13 @@ namespace dvr {
 				break;
 			}
 		}
+		*/
 	};
 
-	class StatusDevoured final : public Devoured, public IoStateObserver<Connection> {
+	class StatusDevoured final : public Devoured {
 	private:
-		EventPoll event_poll;
-		Network network;
 		uint16_t req_id;
-		std::unique_ptr<Connection> connection;
+		std::unique_ptr<AsyncIoStream> connection;
 		std::chrono::steady_clock::time_point next_update;
 		const std::string target;
 		
@@ -274,18 +278,18 @@ namespace dvr {
 			while(isActive()){
 				std::this_thread::sleep_until(next_update);
 				next_update += sleep_interval;
-				event_poll.poll();
+				io_context.event_poll.poll();
 			}
 		}
 	public:
 		StatusDevoured(const Parameter& params):
 			Devoured(true, 0),
-			network{event_poll},
 			req_id{0},
 			connection{nullptr},
 			next_update{std::chrono::steady_clock::now()},
 			target{params.target.has_value()?(*params.target):""}
 		{
+			/*
 			connection = network.connect(std::string{"/tmp/devoured/default"}+user_id_string, *this);
 			MessageRequest msg{
 				0,
@@ -300,8 +304,10 @@ namespace dvr {
 			}else{
 				stop();
 			}
+			*/
 		}
 
+		/*
 		void notify(Connection& conn, IoState state) override {
 			switch(state){
 				case IoState::ReadReady:{
@@ -321,11 +327,13 @@ namespace dvr {
 				break;
 			}
 		}
+		*/
 	};
 
 	Devoured::Devoured(bool act, int sta):
 		active{act},
-		status{sta}
+		status{sta},
+		io_context{setupAsyncIo()}
 	{
 		register_signal_handlers();
 	}
