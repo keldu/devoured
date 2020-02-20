@@ -30,13 +30,43 @@ namespace dvr {
 
 	template<typename T>
 	class ErrorOr {
+	public:
+		/*
+		 * Minor help if I want to guarantee object lifetime
+		 */
+		class AttachmentHelperBase {
+		private:
+			std::unique_ptr<AttachmentHelperBase> attached;
+		public:
+			AttachmentHelperBase():attached{nullptr}{}
+			AttachmentHelperBase(std::unique_ptr<AttachmentHelperBase>&& att):
+				attached{std::move(att)}{}
+			virtual ~AttachmentHelperBase() = default;
+		};
+
+		template<typename Attachment>
+		class AttachmentHelper {
+		private:
+			Attachment attachment;
+		public:
+			AttachmentHelper(std::unique_ptr<AttachmentHelperBase>&& att, Attachment&& attach):
+				AttachmentHelperBase(std::move(att)),
+				attachment{std::move(attach)}
+			{}
+			AttachmentHelper(Attachment&& attach):
+				AttachmentHelperBase(nullptr, std::move(attach))
+			{}
+		};
 	private:
 		std::function<void(T)> call;
 		std::function<void(const Error& error)> err_call;
+
+		std::unique_ptr<AttachmentHelperBase> attachment_helper;
 	public:
 		ErrorOr(std::function<void(T)> call, std::function<void(const Error&)> errors):
 			call{std::move(call)},
-			err_call{std::move(errors)}
+			err_call{std::move(errors)},
+			attachment_helper{nullptr}
 		{}
 
 		void set(T value){
@@ -45,6 +75,24 @@ namespace dvr {
 
 		void fail(const Error& error){
 			err_call(error);
+		}
+
+		/*
+		 * Should only be used once per instance of ErrorOr<T>
+		 * But to allow safe use of this function any number of attach calls are possible
+		 */
+		template<typename... Attachments>
+		ErrorOr<T>& attach(Attachments&&... attachments){
+			/*
+			 * This is some serious template magic
+			 */
+			if( attachment_helper ){
+				std::unique_ptr<AttachmentHelperBase> attachment = std::make_unique<AttachmentHelper<std::tuple<Attachments...>>>(std::move(attachment_helper), std::make_tuple(std::forward(attachments)...));
+				attachment_helper = std::move(attachment);
+			}else{
+				attachment_helper = std::make_unique<AttachmentHelper<std::tuple<Attachments...>>>(std::make_tuple(std::forward(attachments)...));
+			}
+			return *this;
 		}
 	};
 
