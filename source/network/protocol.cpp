@@ -1,6 +1,6 @@
 #include "protocol.h"
 
-#include "network.h"
+#include "async.h"
 
 #include <iostream>
 
@@ -84,7 +84,7 @@ namespace dvr {
 		return shift + value.size();
 	}
 
-	std::optional<MessageRequest> asyncReadRequest(Connection& connection){
+	std::optional<MessageRequest> asyncReadRequest(AsyncIoStream& connection){
 		auto opt_buffer = connection.read(message_length_size);
 		if(!opt_buffer.has_value()){
 			return std::nullopt;
@@ -117,7 +117,7 @@ namespace dvr {
 		return msg;
 	}
 
-	bool asyncWriteRequest(Connection& connection, const MessageRequest& request){
+	bool asyncWriteRequest(AsyncOutputStream& connection, const MessageRequest& request){
 		const size_t ct_size = request.content.size();
 		const size_t tg_size = request.target.size();
 		const size_t msg_size = ct_size + tg_size + request_static_size;

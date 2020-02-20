@@ -1,5 +1,5 @@
 #include "network.h"
-
+/*
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
@@ -23,7 +23,7 @@ namespace dvr {
 		bind_address{unix_addr}
 	{}
 
-	std::unique_ptr<Server> UnixSocketAddress::listen(IServerStateObserver& obsrv){
+	std::unique_ptr<Server> UnixSocketAddress::listen(IStreamStateObserver& obsrv){
 		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
 		//TODO Missing errno check in every state
 
@@ -40,7 +40,7 @@ namespace dvr {
 		::strncpy(local.sun_path, bind_address.c_str(), len);
 		local.sun_path[len] = 0;
 
-#ifdef NDEBUG
+#ifndef NDEBUG
 		::unlink(local.sun_path);
 #endif
 
@@ -55,7 +55,7 @@ namespace dvr {
 		return std::make_unique<Server>(poll, file_descriptor, bind_address, obsrv);
 	}
 	
-	std::unique_ptr<Connection> UnixSocketAddress::connect(IConnectionStateObserver& obsrv){
+	std::unique_ptr<Connection> UnixSocketAddress::connect(IoStateObserver<Connection>& obsrv){
 		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
 
 		if(file_descriptor < 0){
@@ -82,12 +82,11 @@ namespace dvr {
 
 	static ConnectionId next_connection_id = 0;
 
-	Connection::Connection(EventPoll& p, int fd, IConnectionStateObserver& obsrv):
+	Connection::Connection(EventPoll& p, int fd, IoStateObserver<Connection>& obsrv):
 		IFdObserver(p, fd, EPOLLIN | EPOLLOUT),
 		poll{p},
 		connection_id{++next_connection_id},
 		observer{obsrv},
-		file_desc{fd},
 		is_broken{false},
 		write_ready{true},
 		already_written{0},
@@ -108,13 +107,11 @@ namespace dvr {
 		is_broken = true;
 		read_ready = false;
 		write_ready = false;
-		observer.notify(*this, ConnectionState::Broken);
+		observer.notify(*this, IoState::Broken);
 	}
 
-	/*
 	 * Based on EPoll notification accept, read or write in a non blocking way
 	 * and queue reads and/or handle writes
-	 */
 	void Connection::notify(uint32_t mask){
 		if(broken()){
 			return;
@@ -122,23 +119,23 @@ namespace dvr {
 		if( mask & EPOLLOUT ){
 			write_ready = true;
 			onReadyWrite();
-			observer.notify(*this, ConnectionState::WriteReady);
+			observer.notify(*this, IoState::WriteReady);
 		}
 		if( mask & EPOLLIN ){
 			read_ready = true;
 			onReadyRead();
-			observer.notify(*this, ConnectionState::ReadReady);
+			observer.notify(*this, IoState::ReadReady);
 		}
 	}
 
 	void Connection::write(std::vector<uint8_t>&& buffer){
 		if(write_buffer.empty()){
 			write_buffer = std::move(buffer);
-		}else /*if (write_buffer.size() + buffer.size() <= write_buffer_size)*/{
+		}else if (write_buffer.size() + buffer.size() <= write_buffer_size){
 			write_buffer.insert(std::end(write_buffer), std::begin(buffer),std::end(buffer));
-		}/*else{
+		}else{
 
-		}*/
+		}
 		if(write_ready){
 			onReadyWrite();
 		}
@@ -234,7 +231,6 @@ namespace dvr {
 
 	Server::Server(EventPoll& p, int fd, const std::string& addr, IServerStateObserver& obs):
 		IFdObserver(p, fd, EPOLLIN),
-		file_desc{fd},
 		event_poll{p},
 		address{addr},
 		observer{obs}
@@ -251,11 +247,11 @@ namespace dvr {
 		}
 	}
 
-	std::unique_ptr<Connection> Server::accept(IConnectionStateObserver& obsrv){
+	std::unique_ptr<Connection> Server::accept(IoStateObserver<Connection>& obsrv){
 		struct ::sockaddr_storage addr;
 		socklen_t addr_len = sizeof(addr);
 
-		int accepted_fd = ::accept4(file_desc, reinterpret_cast<struct ::sockaddr*>(&addr), &addr_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
+		int accepted_fd = ::accept4(fd(), reinterpret_cast<struct ::sockaddr*>(&addr), &addr_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
 
 		if(accepted_fd<0) {
 			//TODO Error checking
@@ -268,6 +264,12 @@ namespace dvr {
 
 	const std::string& UnixSocketAddress::getPath()const{
 		return bind_address;
+	}
+
+	void Pipe::Input::notify(uint32_t mask){
+	}
+	
+	void Pipe::Output::notify(uint32_t mask){
 	}
 
 	Network::Network(EventPoll& event_poll_p):
@@ -287,7 +289,7 @@ namespace dvr {
 		return acceptor;
 	}
 
-	std::unique_ptr<Connection> Network::connect(const std::string& address, IConnectionStateObserver& obsrv){
+	std::unique_ptr<Connection> Network::connect(const std::string& address, IoStateObserver<Connection>& obsrv){
 		auto unix_addr = parseUnixAddress(address);
 		if(!unix_addr){
 			return nullptr;
@@ -302,5 +304,5 @@ namespace dvr {
 	std::unique_ptr<UnixSocketAddress> Network::parseUnixAddress(const std::string& unix_path){
 		return std::make_unique<UnixSocketAddress>(event_poll, unix_path);
 	}
-
 }
+*/

@@ -26,7 +26,7 @@ namespace dvr {
 	static uid_t user_id = 0;
 	static std::string user_id_string = "";
 
-	class DaemonDevoured final : public Devoured, public IConnectionStateObserver, public IServerStateObserver {
+	class DaemonDevoured final : public Devoured, public IoStateObserver<Connection>, public IServerStateObserver {
 	private:
 		EventPoll event_poll;
 		Network network;
@@ -151,14 +151,14 @@ namespace dvr {
 			config_path{f}
     	{}
     
-		void notify(Connection& conn, ConnectionState state) override {
+		void notify(Connection& conn, IoState state) override {
 			switch(state){
-				case ConnectionState::Broken:{
+				case IoState::Broken:{
 					connection_map.erase(conn.id());
 					std::cout<<"Connection unregistered in DaemonDevoured"<<std::endl;
 				}
 				break;
-				case ConnectionState::ReadReady:{
+				case IoState::ReadReady:{
 					auto opt_msg = asyncReadRequest(conn);
 					if(opt_msg){
 						auto& msg = *opt_msg;
@@ -193,7 +193,7 @@ namespace dvr {
 		void loop(){}
 	};
 
-	class ManageDevoured final : public Devoured, public IConnectionStateObserver {
+	class ManageDevoured final : public Devoured, public IoStateObserver<Connection> {
 	private:
 		EventPoll event_poll;
 		Network network;
@@ -241,9 +241,9 @@ namespace dvr {
 			}
 		}
 		
-		void notify(Connection& conn, ConnectionState state) override {
+		void notify(Connection& conn, IoState state) override {
 			switch(state){
-				case ConnectionState::ReadReady:{
+				case IoState::ReadReady:{
 					auto opt_msg = asyncReadResponse(conn);
 					if(opt_msg.has_value()){
 						std::cout<<(*opt_msg)<<std::endl;
@@ -251,18 +251,18 @@ namespace dvr {
 					}
 				}
 				break;
-				case ConnectionState::Broken:{
+				case IoState::Broken:{
 					stop();
 				}
 				break;
-				case ConnectionState::WriteReady:{
+				case IoState::WriteReady:{
 				}
 				break;
 			}
 		}
 	};
 
-	class StatusDevoured final : public Devoured, public IConnectionStateObserver {
+	class StatusDevoured final : public Devoured, public IoStateObserver<Connection> {
 	private:
 		EventPoll event_poll;
 		Network network;
@@ -304,9 +304,9 @@ namespace dvr {
 			}
 		}
 
-		void notify(Connection& conn, ConnectionState state) override {
+		void notify(Connection& conn, IoState state) override {
 			switch(state){
-				case ConnectionState::ReadReady:{
+				case IoState::ReadReady:{
 					auto opt_msg = asyncReadResponse(conn);
 					if(opt_msg.has_value()){
 						std::cout<<(*opt_msg)<<std::endl;
@@ -314,11 +314,11 @@ namespace dvr {
 					}
 				}
 				break;
-				case ConnectionState::Broken:{
+				case IoState::Broken:{
 					stop();
 				}
 				break;
-				case ConnectionState::WriteReady:{
+				case IoState::WriteReady:{
 				}
 				break;
 			}

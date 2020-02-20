@@ -6,7 +6,7 @@
 #include <iostream>
 
 namespace dvr {
-	ProcessStream::ProcessStream(int pid, const std::array<int,3>& fds, EventPoll& ev_poll):
+	ProcessStream::ProcessStream(int pid, const std::array<int,3>& fds):
 		process_id{pid},
 		file_descriptors{fds}
 	{

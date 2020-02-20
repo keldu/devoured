@@ -4,8 +4,7 @@
 #include <memory>
 #include <vector>
 
-#include "network/event_poll.h"
-#include "network/stream.h"
+#include "network/async.h"
 
 namespace dvr {
 	class ProcessStream {
@@ -17,11 +16,11 @@ namespace dvr {
 		/* TODO
 		 * will replace file_descriptors
 		 */
-		std::unique_ptr<OutputStream> std_in;
-		std::unique_ptr<InputStream> std_out;
-		std::unique_ptr<InputStream> std_err;
+		std::unique_ptr<AsyncOutputStream> std_in;
+		std::unique_ptr<AsyncInputStream> std_out;
+		std::unique_ptr<AsyncInputStream> std_err;
 	public:
-		ProcessStream(int pid, std::array<int,3>&& fds, EventPoll& event_poll);
+		ProcessStream(int pid, std::unique_ptr<AsyncOutputStream> in, std::unique_ptr<AsyncInputStream> out, std::unique_ptr<AsyncInputStream> err);
 
 		/*
 		 *	returns the file descriptor from the parent side which replaced
@@ -29,7 +28,9 @@ namespace dvr {
 		 *	stdout 1,
 		 *	stderr 2
 		 */
-		const std::array<int,3>& getFds() const;
+		AsyncOutputStream& in() const;
+		AsyncInputStream& out() const;
+		AsyncInputStream& err() const;
 		/*
 		 *	return the process id of the child
 		 */
