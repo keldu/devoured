@@ -6,19 +6,27 @@
 #include <iostream>
 
 namespace dvr {
-	ProcessStream::ProcessStream(int pid, const std::array<int,3>& fds):
+	ProcessStream::ProcessStream(int pid, std::unique_ptr<AsyncOutputStream> in, std::unique_ptr<AsyncInputStream> out, std::unique_ptr<AsyncInputStream> err):
 		process_id{pid},
-		file_descriptors{fds}
-	{
+		std_in{std::move(in)},
+		std_out{std::move(out)},
+		std_err{std::move(err)}
+	{}
 
+	AsyncOutputStream& ProcessStream::in() const {
+		return *std_in;
+	}
+
+	AsyncInputStream& ProcessStream::out() const {
+		return *std_out;
+	}
+
+	AsyncInputStream& ProcessStream::err() const {
+		return *std_err;
 	}
 
 	pid_t ProcessStream::getPID() const {
 		return process_id;
-	}
-	
-	const std::array<int,3>& ProcessStream::getFds() const {
-		return file_descriptors;
 	}
 	
 	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments, EventPoll& ev_poll){

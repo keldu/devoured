@@ -23,7 +23,7 @@ namespace dvr {
 		ProcessStream(int pid, std::unique_ptr<AsyncOutputStream> in, std::unique_ptr<AsyncInputStream> out, std::unique_ptr<AsyncInputStream> err);
 
 		/*
-		 *	returns the file descriptor from the parent side which replaced
+		 *	returns the file descriptor streams from the parent side which replaced
 		 *	stdin 0,
 		 *	stdout 1,
 		 *	stderr 2

@@ -14,7 +14,6 @@
 #include "arguments/parameter.h"
 #include "signal_handler.h"
 #include "network/protocol.h"
-#include "network/event_poll.h"
 
 #include "service.h"
 
@@ -28,8 +27,7 @@ namespace dvr {
 
 	class DaemonDevoured final : public Devoured, public IoStateObserver<Connection>, public IServerStateObserver {
 	private:
-		EventPoll event_poll;
-		Network network;
+		AsyncIoContext io_context;
 
 		std::map<Devoured::Mode, std::function<void(Connection&,const MessageRequest&)>> request_handlers;
 		/*
@@ -70,7 +68,7 @@ namespace dvr {
 			}
 		}
 
-		void handleStatus(Connection& connection, const MessageRequest& req){
+		void handleStatus(AsyncIoStream& connection, const MessageRequest& req){
 			std::cout<<"Handling status messages"<<std::endl;
 			auto t_find = targets.find(req.target);
 			if(t_find != targets.end()){
