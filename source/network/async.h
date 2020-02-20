@@ -66,13 +66,6 @@ namespace dvr {
 
 	class AsyncIoStream : public AsyncInputStream, public AsyncOutputStream {
 	public:
-		/*
-		size_t read(uint8_t* buffer, size_t length) override = 0;
-		void closeRead() override;
-
-		size_t write(uint8_t* buffer, size_t length) override;
-		void closeWrite() override;
-		*/
 	};
 
 	class StreamListener {
@@ -84,8 +77,8 @@ namespace dvr {
 	public:
 		virtual ~NetworkAddress() = default;
 
-		virtual std::unique_ptr<StreamListener> listen() = 0;
-		virtual std::unique_ptr<AsyncIoStream> connect() = 0;
+		virtual void listen(ErrorOr<std::unique_ptr<StreamListener>> async) = 0;
+		virtual void connect(ErrorOr<std::unique_ptr<AsyncIoStream>> async) = 0;
 	};
 
 	class EventPoll {
