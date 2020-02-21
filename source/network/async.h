@@ -11,43 +11,40 @@ using std::size_t;
 #include "async-magic.h"
 
 namespace dvr {
-	class Error {
-	private:
-		const int64_t error_code;
-		const std::string error_message;
-	public:
-		Error(int64_t ec, const std::string& em):
-			error_code{ec},
-			error_message{em}
-		{}
-
-		int64_t code() const {
-			return error_code;
-		}
-
-		const std::string& message() const {
-			return error_message;
-		}
-
-		bool failed() const {
-			return error_code != 0;
-		}
-	};
+	/*
+	 *
+	 */
+	template<typename Func, typename T>
+	using PromiseForResult = ReducePromises<ReturnType<Func, T>>;
 
 	template<typename T>
-	class ErrorOr {
-	private:
-		std::variant<Error, T> error_or_value;
+	class Promise : PromiseBase {
 	public:
-		void visit(std::function<void(T&)> value_func);
-		void visit(std::function<void(T&)> value_func, std::function<void(const Error&)> error_func);
+		/*
+		 * Construct a fulfilled promise
+		 */
+		Promise(FixVoid<T> value);
+		/*
+		 * Construct a broken promise
+		 */
+		Promise(const Error& error);
+
+		Promise(decltype(nullptr)){}
+
+		template<typename Func, typename ErrorFunc = PropagateError>
+		PromiseForResult<Func, T> then(std::function<ReturnType<Func,T>>&& func, std::function<void(Error&&)>&& error_func = PropagateError());
+
+		Promise<void> ignoreResult() { return then([](T&&){});}
+
+		template<typename... Attachments>
+		void attach(Attachments&&... attachments);
 	};
 
 	class AsyncInputStream {
 	public:
 		virtual ~AsyncInputStream() = default;
 
-		virtual void read(uint8_t* buffer, size_t length, ErrorOr<size_t> async ) = 0;
+		virtual void read(uint8_t* buffer, size_t length) = 0;
 		virtual void closeRead() = 0;
 	};
 
@@ -55,7 +52,7 @@ namespace dvr {
 	public:
 		virtual ~AsyncOutputStream() = default;
 
-		virtual void write(uint8_t* buffer, size_t length, ErrorOr<size_t> async ) = 0;
+		virtual void write(uint8_t* buffer, size_t length ) = 0;
 		virtual void closeWrite() = 0;
 	};
 
@@ -65,7 +62,7 @@ namespace dvr {
 
 	class StreamListener {
 	public:
-		virtual void accept(ErrorOr<std::unique_ptr<AsyncIoStream>> async) = 0;
+		virtual void accept() = 0;
 	};
 
 	class NetworkAddress {
@@ -99,3 +96,5 @@ namespace dvr {
 
 	AsyncIoContext setupAsyncIo();
 }
+
+#include "async-inl.h"
