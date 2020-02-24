@@ -6,9 +6,7 @@ env.objects = []
 env.sources = []
 env.headers = []
 
-# hdr_list = ['process_stream.h', 'network.h','devoured.h','signal_handler.h']
-# src_list = ['process_stream.cpp', 'network.cpp', 'devoured.cpp', 'signal_handler.cpp','protocol.cpp']
-
+SConscript('async/SConscript')
 SConscript('network/SConscript')
 SConscript('devoured/SConscript')
 

@@ -1,4 +1,8 @@
 #pragma once
+
+namespace dvr {
+}
+
 /*
 #include <memory>
 #include <vector>

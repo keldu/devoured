@@ -20,9 +20,24 @@ public:
 	bool failed() const;
 };
 
+template<typename T>
+class ErrorOr;
+
+/*
+ * Intended as passing around helper.
+ * Not every function needs to know which templated
+ * type this is. This may result in less code possibly depending
+ * on the compiler or the cpp standard
+ */
 class ErrorOrValue {
-	public:
-		virtual ~ErrorOrValue() = default;
+public:
+	virtual ~ErrorOrValue() = default;
+
+	template<typename T>
+	ErrorOr<T>& as();
+
+	template<typename T>
+	const ErrorOr<T>& as() const;
 };
 
 template<typename T>
@@ -41,20 +56,23 @@ public:
 };
 
 template<typename t>
-class Promise;
+class Belt;
 
 class AsyncEvent;
 
 template<typename T>
-Promise<T> reducePromiseType(T*, ...);
+Belt<T> reduceBeltType(T*, ...);
 template<typename T>
-Promise<T> reducePromiseType(Promise<T>*, ...);
-template<typename T, typename Reduced = decltype(T::reducePromise(std::declval<Promise<T>>()))>
-Reduced reducePromiseType(T*, bool);
+Belt<T> reduceBeltType(Belt<T>*, ...);
+template<typename T, typename Reduced = decltype(T::reduceBelt(std::declval<Belt<T>>()))>
+Reduced reduceBeltType(T*, bool);
 
 template <typename T>
-using ReducePromises = decltype(reducePromiseType((T*)nullptr, false));
+using ReduceBelts = decltype(reduceBeltType((T*)nullptr, false));
 
+/*
+ * Since no functors are used for propagation. Just set the return value to the error
+ */
 class PropagateError {
 	public:
 		class Bottom {
@@ -79,6 +97,8 @@ class PropagateError {
 /*
  * Inspired by capn'proto hacky template magic
  * Why not use std::function with std::function<ReturnType>?
+ * For me it's simpler to use and I don't have to play around with
+ * function memory addresses
  */
 template <typename Func, typename T>
 struct ReturnType_ { typedef decltype( std::declval<Func>()(std::declval<T>())) Type; };
@@ -96,7 +116,7 @@ using ReturnType = typename ReturnType_<Func, T>::Type;
 // std::function<void(int)>
 
 /*
- * Unsure if I can keep this
+ * Unsure if I can should keep this
  */
 
 struct Void {};
@@ -109,31 +129,34 @@ template<typename T> struct UnfixVoid_ {typedef T Type; };
 template<> struct UnfixVoid_<Void> { typedef void Type; };
 template<typename T> using UnfixVoid = typename UnfixVoid_<T>::Type;
 
-class PromiseNode;
+class BeltNode;
 /*
 class NeverDone {
 public:
 	template<typename T>
-	operator Promise<T>() const;
+	operator Belt<T>() const;
 };
 */
 
 /*
- * Base should never be deconstructed as PromiseBase, so the virtual destructor isn't necessary.
- * Since Promise and PromiseNode are friend classes the destructor is private
+ * Base should never be deconstructed as BeltBase, so the virtual destructor isn't necessary.
+ * Since Belt and BeltNode are friend classes the destructor is private
  */
 
-class PromiseBase {
+class BeltBase {
 private:
-	std::unique_ptr<PromiseNode> node;
+	/*
+	 * Every promise has a promise node
+	 */
+	std::unique_ptr<BeltNode> node;
 
-	PromiseBase();
-	PromiseBase(std::unique_ptr<PromiseNode>&& node_p);/*:node{std::move(node_p)}{}*/
-	~PromiseBase();
+	BeltBase();
+	BeltBase(std::unique_ptr<BeltNode>&& node_p);/*:node{std::move(node_p)}{}*/
+	~BeltBase();
 	
 	template<typename T>
-	friend class Promise;
-	friend class PromiseNode;
+	friend class Belt;
+	friend class BeltNode;
 public:
 };
 }

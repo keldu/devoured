@@ -145,7 +145,7 @@ namespace dvr {
 			return event_poll;
 		}
 
-		void parseAddress(ErrorOr<std::unique_ptr<AsyncIoStream>> async, const std::string& addr, int32_t port_hint = 0) override {
+		void parseAddress(const std::string& addr, int32_t port_hint = 0) override {
 		}
 	};
 

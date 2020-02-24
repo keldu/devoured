@@ -1,4 +1,8 @@
 #include "network.h"
+
+namespace dvr {
+}
+
 /*
 #include <sys/socket.h>
 #include <sys/types.h>
