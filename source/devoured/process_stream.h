@@ -11,8 +11,6 @@ namespace dvr {
 	private:
 		pid_t process_id;
 		
-		std::array<int,3> file_descriptors;
-
 		/* TODO
 		 * will replace file_descriptors
 		 */
