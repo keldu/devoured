@@ -21,6 +21,9 @@ namespace dvr {
 		EventPoll();
 		~EventPoll();
 
+		void enterScope();
+		void leaveScope();
+
 		bool poll();
 
 		void subscribe(IFdObserver& obsv);
@@ -138,15 +141,12 @@ namespace dvr {
 	private:
 		EventPoll& poll;
 		std::string bind_address;
-
-		int socketBind();
 	public:
 		UnixSocketAddress(EventPoll& p, const std::string& unix_address);
 
 		std::unique_ptr<Server> listen(IServerStateObserver& obsrv);
 		std::unique_ptr<Connection> connect(IConnectionStateObserver& obsrv);
 
-		int getFD() const;
 		const std::string& getPath() const;
 	};
 	
@@ -164,4 +164,24 @@ namespace dvr {
 		std::unique_ptr<Connection> connect(const std::string& address, IConnectionStateObserver& obsrv);
 
 	};
+
+	class WaitScope {
+
+	};
+
+	class AsyncIoProvider {
+	public:
+		virtual ~AsyncIoProvider() = default;
+
+		virtual EventPoll& eventPoll() = 0;
+		virtual std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& path) = 0;
+	};
+
+	struct AsyncIoContext {
+		std::unique_ptr<AsyncIoProvider> provider;
+		EventPoll& event_poll;
+		WaitScope& wait_scope;
+	};
+
+	AsyncIoContext setupAsyncIo();
 }
