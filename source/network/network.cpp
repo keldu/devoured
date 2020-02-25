@@ -78,7 +78,9 @@ namespace dvr {
 			for(int n = 0; n < nfds; ++n){
 				std::cout<<"FD "<<events[n].data.fd<<std::endl;
 				IFdOwner* owner = reinterpret_cast<IFdOwner*>(events[n].data.ptr);
-				owner->notify(events[n].events);
+				if(owner){
+					owner->notify(events[n].events);
+				}
 			}
 
 			return broken;
@@ -239,6 +241,7 @@ namespace dvr {
 			if( mask & EPOLLIN ){
 				read_ready = true;
 				onReadyRead();
+				std::cerr<<"memposition "<<this<<std::endl;
 				observer.notify(*this, IoStreamState::ReadReady);
 			}
 		}
@@ -333,7 +336,7 @@ namespace dvr {
 		::strncpy(local.sun_path, bind_address.c_str(), len);
 		local.sun_path[len] = 0;
 
-#ifdef NDEBUG
+#ifndef NDEBUG
 		::unlink(local.sun_path);
 #endif
 
