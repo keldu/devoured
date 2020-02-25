@@ -37,6 +37,8 @@ namespace dvr {
 		
 		std::chrono::steady_clock::time_point next_update;
 
+		std::list<std::unique_ptr<IoStream>> to_be_destroyed;
+
 		void handleStatus(IoStream& connection, const MessageRequest& req){
 			std::cout<<"Handling status messages"<<std::endl;
 			auto t_find = targets.find(req.target);
@@ -90,12 +92,17 @@ namespace dvr {
 		void notify(IoStream& conn, IoStreamState state) override {
 			switch(state){
 				case IoStreamState::Broken:{
-					connection_map.erase(conn.id());
-					std::cout<<"IoStream unregistered in DaemonDevoured "<<connection_map.size()<<std::endl;
+					// connection_map.erase(conn.id());
+					auto find = connection_map.find(conn.id());
+					if( find != connection_map.end() ){
+						to_be_destroyed.push_back(std::move(find->second));
+						connection_map.erase(find);
+						std::cout<<"IoStream unregistered in DaemonDevoured"<<std::endl;
+					}
 				}
 				break;
 				case IoStreamState::ReadReady:{
-					std::cout<<"Io Stream reading happening "<<conn.id()<<" "<<connection_map.size()<<std::endl;
+					std::cout<<"Io Stream reading happening "<<connection_map.size()<<std::endl;
 					auto opt_msg = asyncReadRequest(conn);
 					if(opt_msg){
 						auto& msg = *opt_msg;
@@ -128,6 +135,7 @@ namespace dvr {
 
 				// Update all subsystems like network ...
 				io_context.wait_scope.poll();
+				to_be_destroyed.clear();
 			}
 		}
 

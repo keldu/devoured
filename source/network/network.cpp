@@ -28,6 +28,7 @@ namespace dvr {
 
 	IFdOwner::~IFdOwner(){
 		poll.unsubscribe(file_desc);
+		::close(file_desc);
 	}
 
 	int IFdOwner::fd()const{
@@ -48,10 +49,12 @@ namespace dvr {
 
 		int epoll_fd;
 		bool broken;
+		bool running;
 
 	public:
 		Impl():
-			broken{false}
+			broken{false},
+			running{false}
 		{
 			epoll_fd = epoll_create1(0);
 			if(epoll_fd < 0){
@@ -66,8 +69,11 @@ namespace dvr {
 		}
 
 		bool poll(){
+			running = true;
+			std::cerr<<"EPoll begins"<<std::endl;
 			::epoll_event events[max_events];
 			if(broken){
+				std::cerr<<"Epoll broken"<<std::endl;
 				return true;
 			}
 			int nfds = ::epoll_wait(epoll_fd, events, max_events, -1);
@@ -82,6 +88,8 @@ namespace dvr {
 				}
 			}
 
+			std::cerr<<"EPoll ends"<<std::endl;
+			running = false;
 			return broken;
 		}
 
@@ -300,7 +308,6 @@ namespace dvr {
 			write_ready = false;
 			std::cerr<<"Test"<<std::endl;
 			observer.notify(*this, IoStreamState::Broken);
-			::close(fd());
 		}
 		bool broken() const {
 			return is_broken;
