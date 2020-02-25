@@ -3,10 +3,19 @@
 #include <array>
 #include <memory>
 
+#include "network/network.h"
+
 namespace dvr {
 	class ProcessStream{
+	private:
+		std::string exec_file;
+		const int process_id;
+		
+		std::unique_ptr<OutputStream> std_in;
+		std::unique_ptr<InputStream> std_out;
+		std::unique_ptr<InputStream> std_err;
 	public:
-		ProcessStream(const std::string& ef, int pid, const std::array<int,3>& fds);
+		ProcessStream(const std::string& ef, int pid, std::unique_ptr<OutputStream> in, std::unique_ptr<InputStream> out, std::unique_ptr<InputStream> err);
 
 		/*
 		 *	returns the file descriptor from the parent side which replaced
@@ -14,16 +23,14 @@ namespace dvr {
 		 *	stdout 1,
 		 *	stderr 2
 		 */
-		const std::array<int,3>& getFD() const;
+		OutputStream& in();
+		InputStream& out();
+		InputStream& err();
 		/*
 		 *	return the process id of the child
 		 */
 		int getPID() const;
-	private:
-		int process_id;
-		std::array<int,3> file_descriptors;
-		std::string exec_file;
 	};
 
-	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file);
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, AsyncIoProvider& provider, IStreamStateObserver& obsrv);
 }
