@@ -102,7 +102,6 @@ namespace dvr {
 				}
 				break;
 				case IoStreamState::ReadReady:{
-					std::cout<<"Io Stream reading happening "<<connection_map.size()<<std::endl;
 					auto opt_msg = asyncReadRequest(conn);
 					if(opt_msg){
 						auto& msg = *opt_msg;

@@ -70,7 +70,6 @@ namespace dvr {
 
 		bool poll(){
 			running = true;
-			std::cerr<<"EPoll begins"<<std::endl;
 			::epoll_event events[max_events];
 			if(broken){
 				std::cerr<<"Epoll broken"<<std::endl;
@@ -88,14 +87,12 @@ namespace dvr {
 				}
 			}
 
-			std::cerr<<"EPoll ends"<<std::endl;
 			running = false;
 			return broken;
 		}
 
 		void subscribe(IFdOwner* owner, int fd, uint32_t mask){
 			if(!broken){
-				std::cout<<"FD SUB "<<std::to_string(fd)<<std::endl;
 				assert(fd >= 0);
 				::epoll_event event;
 				memset(&event, 0, sizeof(event));
@@ -111,7 +108,6 @@ namespace dvr {
 
 		void unsubscribe(int fd){
 			if(!broken){
-				std::cout<<"Unsubscribed observer"<<std::endl;
 				assert(fd >= 0);
 
 				if(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr)){
@@ -306,7 +302,6 @@ namespace dvr {
 			is_broken = true;
 			read_ready = false;
 			write_ready = false;
-			std::cerr<<"Test"<<std::endl;
 			observer.notify(*this, IoStreamState::Broken);
 		}
 		bool broken() const {
