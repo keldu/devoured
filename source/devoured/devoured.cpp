@@ -20,16 +20,14 @@ namespace dvr {
 	static uid_t user_id = 0;
 	static std::string user_id_string = "";
 
-	class DaemonDevoured final : public Devoured, public IConnectionStateObserver, public IServerStateObserver {
+	class DaemonDevoured final : public Devoured, public IStreamStateObserver, public IServerStateObserver {
 	private:
-		Network network;
-
-		std::map<Devoured::Mode, std::function<void(Connection&,const MessageRequest&)>> request_handlers;
+		std::map<Devoured::Mode, std::function<void(IoStream&,const MessageRequest&)>> request_handlers;
 		/*
-		 * Key - ConnId - Connection ID
+		 * Key - the file descriptor
 		 * Value - the connection ptr
 		 */
-		std::map<ConnectionId, std::unique_ptr<Connection>> connection_map;
+		std::map<int, std::unique_ptr<IoStream>> connection_map;
 
 		/*
 		 * Key - Target - String
@@ -39,7 +37,7 @@ namespace dvr {
 		
 		std::chrono::steady_clock::time_point next_update;
 
-		void handleStatus(Connection& connection, const MessageRequest& req){
+		void handleStatus(IoStream& connection, const MessageRequest& req){
 			std::cout<<"Handling status messages"<<std::endl;
 			auto t_find = targets.find(req.target);
 			if(t_find != targets.end()){
@@ -89,14 +87,15 @@ namespace dvr {
 			config_path{f}
     	{}
     
-		void notify(Connection& conn, ConnectionState state) override {
+		void notify(IoStream& conn, IoStreamState state) override {
 			switch(state){
-				case ConnectionState::Broken:{
+				case IoStreamState::Broken:{
 					connection_map.erase(conn.id());
-					std::cout<<"Connection unregistered in DaemonDevoured"<<std::endl;
+					std::cout<<"IoStream unregistered in DaemonDevoured "<<connection_map.size()<<std::endl;
 				}
 				break;
-				case ConnectionState::ReadReady:{
+				case IoStreamState::ReadReady:{
+					std::cout<<"Io Stream reading happening "<<conn.id()<<" "<<connection_map.size()<<std::endl;
 					auto opt_msg = asyncReadRequest(conn);
 					if(opt_msg){
 						auto& msg = *opt_msg;
@@ -114,9 +113,9 @@ namespace dvr {
 			if( state == ServerState::Accept ){
 				auto connection = server.accept(*this);
 				if(connection){
-					ConnectionId id = connection->id();
+					int id = connection->id();
 					connection_map.insert(std::make_pair(id, std::move(connection)));
-					std::cout<<"Connection registered in DaemonDevoured"<<std::endl;
+					std::cout<<"IoStream registered in DaemonDevoured"<<std::endl;
 				}
 			}
 		}
@@ -128,7 +127,7 @@ namespace dvr {
 				next_update += std::chrono::milliseconds{1000};
 
 				// Update all subsystems like network ...
-				network.poll();
+				io_context.wait_scope.poll();
 			}
 		}
 
@@ -147,7 +146,12 @@ namespace dvr {
 			// unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
 			// TODO: Check correct file path somewhere
 
-			control_server = network.listen(socket_path,*this);
+			auto address = io_context.provider->parseUnixAddress(socket_path);
+			if(!address){
+				stop();
+				return;
+			}
+			control_server = address->listen(*this);
 			if(!control_server){
 				stop();
 			}
@@ -156,7 +160,7 @@ namespace dvr {
 		Config config;
 
 		std::unique_ptr<Server> control_server;
-		std::list<std::unique_ptr<Connection>> control_streams;
+		std::list<std::unique_ptr<IoStream>> control_streams;
 	};
 	
 	class InvalidDevoured final : public Devoured {
@@ -180,13 +184,11 @@ namespace dvr {
 		}
 	};
 
-	class StatusDevoured final : public Devoured, public IConnectionStateObserver {
+	class StatusDevoured final : public Devoured, public IStreamStateObserver {
 	private:
-		Network network;
-
 		uint16_t req_id;
 
-		std::unique_ptr<Connection> connection;
+		std::unique_ptr<IoStream> connection;
 		
 		std::chrono::steady_clock::time_point next_update;
 		
@@ -200,9 +202,9 @@ namespace dvr {
 			target{params.target.has_value()?(*params.target):""}
 		{}
 
-		void notify(Connection& conn, ConnectionState state) override {
+		void notify(IoStream& conn, IoStreamState state) override {
 			switch(state){
-				case ConnectionState::ReadReady:{
+				case IoStreamState::ReadReady:{
 					auto opt_msg = asyncReadResponse(conn);
 					if(opt_msg.has_value()){
 						std::cout<<(*opt_msg)<<std::endl;
@@ -210,11 +212,11 @@ namespace dvr {
 					}
 				}
 				break;
-				case ConnectionState::Broken:{
+				case IoStreamState::Broken:{
 					stop();
 				}
 				break;
-				case ConnectionState::WriteReady:{
+				case IoStreamState::WriteReady:{
 				}
 				break;
 			}
@@ -225,12 +227,17 @@ namespace dvr {
 			while(isActive()){
 				std::this_thread::sleep_until(next_update);
 				next_update += std::chrono::milliseconds{1000};
-				network.poll();
+				io_context.wait_scope.poll();
 			}
 		}
 	private:
 		void setup(){
-			connection = network.connect(std::string{"/tmp/devoured/default"}+user_id_string, *this);
+			auto address = io_context.provider->parseUnixAddress(std::string{"/tmp/devoured/default"}+user_id_string);
+			if(!address){
+				stop();
+				return;
+			}
+			connection = address->connect(*this);
 			MessageRequest msg{
 				0,
 				static_cast<uint8_t>(Parameter::Mode::STATUS),
@@ -249,7 +256,8 @@ namespace dvr {
 
 	Devoured::Devoured(bool act, int sta):
 		active{act},
-		status{sta}
+		status{sta},
+		io_context{setupAsyncIo()}
 	{
 		register_signal_handlers();
 	}

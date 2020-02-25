@@ -84,7 +84,7 @@ namespace dvr {
 		return shift + value.size();
 	}
 
-	std::optional<MessageRequest> asyncReadRequest(Connection& connection){
+	std::optional<MessageRequest> asyncReadRequest(InputStream& connection){
 		auto opt_buffer = connection.read(message_length_size);
 		if(!opt_buffer.has_value()){
 			return std::nullopt;
@@ -117,7 +117,7 @@ namespace dvr {
 		return msg;
 	}
 
-	bool asyncWriteRequest(Connection& connection, const MessageRequest& request){
+	bool asyncWriteRequest(OutputStream& connection, const MessageRequest& request){
 		const size_t ct_size = request.content.size();
 		const size_t tg_size = request.target.size();
 		const size_t msg_size = ct_size + tg_size + request_static_size;
@@ -141,7 +141,7 @@ namespace dvr {
 		}
 	}
 
-	std::optional<MessageResponse> asyncReadResponse(Connection& connection){
+	std::optional<MessageResponse> asyncReadResponse(InputStream& connection){
 		auto opt_buffer = connection.read(message_length_size);
 		if(!opt_buffer.has_value()){
 			return std::nullopt;
@@ -174,7 +174,7 @@ namespace dvr {
 		return msg;
 	}
 
-	bool asyncWriteResponse(Connection& connection, const MessageResponse& request){
+	bool asyncWriteResponse(OutputStream& connection, const MessageResponse& request){
 		const size_t ct_size = request.content.size();
 		const size_t tg_size = request.target.size();
 		const size_t msg_size = ct_size + tg_size + request_static_size;

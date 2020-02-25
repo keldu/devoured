@@ -10,7 +10,7 @@
 
 namespace dvr {
 	class UnixSocketAddress;
-	class IFdObserver;
+	class IFdOwner;
 
 	class EventPoll {
 	private:
@@ -26,11 +26,11 @@ namespace dvr {
 
 		bool poll();
 
-		void subscribe(IFdObserver& obsv);
-		void unsubscribe(IFdObserver& obsv);
+		void subscribe(IFdOwner& obsv);
+		void unsubscribe(IFdOwner& obsv);
 	};
 
-	class IFdObserver {
+	class IFdOwner {
 	private:
 		EventPoll& poll;
 		const int file_desc;
@@ -38,8 +38,8 @@ namespace dvr {
 
 		friend class EventPoll;
 	public:
-		IFdObserver(EventPoll& poll, int fd, uint32_t mask);
-		virtual ~IFdObserver();
+		IFdOwner(EventPoll& poll, int fd, int flags, uint32_t mask);
+		virtual ~IFdOwner();
 
 		virtual void notify(uint32_t mask) = 0;
 
@@ -47,72 +47,66 @@ namespace dvr {
 		uint32_t mask() const;
 	};
 
-	class Connection;
-	enum class ConnectionState {
+	class IoStream;
+	enum class IoStreamState {
 		Broken,
 		ReadReady,
 		WriteReady
 	};
-	class IConnectionStateObserver {
+	class IStreamStateObserver {
 	public:
 
-		virtual ~IConnectionStateObserver() = default;
+		virtual ~IStreamStateObserver() = default;
 
-		virtual void notify(Connection& c, ConnectionState mask) = 0;
+		virtual void notify(IoStream& c, IoStreamState mask) = 0;
 	};
 
-	typedef uint64_t ConnectionId;
-	class Connection : public IFdObserver {
-	private:
-		EventPoll& poll;
-		const ConnectionId connection_id;
-		IConnectionStateObserver& observer;
-		
-		int file_desc;
-		bool is_broken;
-
-		// non blocking helpers
-		// write buffering
-		bool write_ready;
-		size_t already_written;
-		std::vector<uint8_t> write_buffer;
-
-		// read buffering 
-		bool read_ready;
-		size_t already_read;
-		std::vector<uint8_t> read_buffer;
-		//
-		void onReadyWrite();
-		void onReadyRead();
+	class OutputStream {
 	public:
-		Connection(EventPoll& p, int fd, IConnectionStateObserver& obsrv);
-		~Connection();
-
-		void notify(uint32_t mask) override;
+		virtual ~OutputStream() = default;
 
 		/*
-		 * move buffer to the writeQueue
+		 * 
 		 */
-		void write(std::vector<uint8_t>&& buffer);
-		bool hasWriteQueued() const;
-		
-		/* 
-		 * get front buffer in read and the already read hint.
-		 */
-		std::optional<uint8_t*> read(size_t n);
-		void consumeRead(size_t n);
-		bool hasReadQueued() const;
+		virtual void write(std::vector<uint8_t>&& buffer) = 0;
+		virtual bool hasWriteQueued() const = 0;
+	};
+	
+	class InputStream {
+	public:
+		virtual ~InputStream() = default;
 
 		/*
-		 * checks if stream is broken or not
+		 * Is technically a peek
 		 */
-		const int& fd() const;
-		void close();
-		bool broken() const;
-		
-		const ConnectionId& id() const;
+		virtual std::optional<uint8_t*> read(size_t n) = 0;
+		virtual void consumeRead(size_t n) = 0;
+		virtual bool hasReadQueued() const = 0;
 	};
 
+	typedef uint64_t IoStreamId;
+	/*
+	 * This should be divided into IoStream and FdStream, where
+	 * IoStream is an interface
+	 * FdStream is the child class hidden in network.cpp
+	 * Exposing is ok here, because it's not a library, but I still would prefer
+	 * to move it.
+	 * Meant for the future when everything works
+	 */
+	class IoStream : public InputStream, public OutputStream {
+	public:
+		virtual ~IoStream() = default;
+
+		virtual int id() const = 0;
+
+		virtual void write(std::vector<uint8_t>&& buffer) = 0;
+		virtual bool hasWriteQueued() const = 0;
+
+		virtual std::optional<uint8_t*> read(size_t n) = 0;
+		virtual void consumeRead(size_t n) = 0;
+		virtual bool hasReadQueued() const = 0;
+	};
+	
 	enum class ServerState {
 		Accept
 	};
@@ -122,9 +116,8 @@ namespace dvr {
 		virtual ~IServerStateObserver() = default;
 		virtual void notify(Server& server, ServerState state) = 0;
 	};
-	class Server : public IFdObserver {
+	class Server : public IFdOwner {
 	private:
-		int file_desc;
 		EventPoll& event_poll;
 		const std::string address;
 		IServerStateObserver& observer;
@@ -134,7 +127,7 @@ namespace dvr {
 
 		void notify(uint32_t mask) override;
 
-		std::unique_ptr<Connection> accept(IConnectionStateObserver& obsrv);
+		std::unique_ptr<IoStream> accept(IStreamStateObserver& obsrv);
 	};
 
 	class UnixSocketAddress {
@@ -145,36 +138,30 @@ namespace dvr {
 		UnixSocketAddress(EventPoll& p, const std::string& unix_address);
 
 		std::unique_ptr<Server> listen(IServerStateObserver& obsrv);
-		std::unique_ptr<Connection> connect(IConnectionStateObserver& obsrv);
+		std::unique_ptr<IoStream> connect(IStreamStateObserver& obsrv);
 
 		const std::string& getPath() const;
 	};
 	
-	class Network {
-	private:
-		EventPoll ev_poll;
-		
-		std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& unix_path);
-	public:
-		Network();
-
-		void poll();
-
-		std::unique_ptr<Server> listen(const std::string& address, IServerStateObserver& obsrv);
-		std::unique_ptr<Connection> connect(const std::string& address, IConnectionStateObserver& obsrv);
-
-	};
-
-	class WaitScope {
-
-	};
-
+	class WaitScope;
 	class AsyncIoProvider {
 	public:
 		virtual ~AsyncIoProvider() = default;
 
-		virtual EventPoll& eventPoll() = 0;
 		virtual std::unique_ptr<UnixSocketAddress> parseUnixAddress(const std::string& path) = 0;
+
+		virtual std::unique_ptr<InputStream> wrapInputFd(int fd, IStreamStateObserver& obsrv, uint32_t flags = 0) = 0;
+		virtual std::unique_ptr<OutputStream> wrapOutputFd(int fd, IStreamStateObserver& obsrv, uint32_t flags = 0) = 0;
+	};
+
+	class WaitScope {
+	private:
+		EventPoll& e_poll;
+	public:
+		WaitScope(EventPoll& poll);
+		~WaitScope();
+
+		void poll();
 	};
 
 	struct AsyncIoContext {
