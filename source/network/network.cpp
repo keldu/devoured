@@ -240,8 +240,6 @@ namespace dvr {
 			if( mask & EPOLLIN ){
 				read_ready = true;
 				onReadyRead();
-				std::cerr<<"memposition stream"<<this<<std::endl;
-				std::cerr<<"memposition obsrve"<<&observer<<std::endl;
 				observer.notify(*this, IoStreamState::ReadReady);
 			}
 		}
