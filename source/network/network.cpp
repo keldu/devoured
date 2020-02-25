@@ -23,11 +23,11 @@ namespace dvr {
 		file_desc{file_d},
 		event_mask{msk}
 	{
-		poll.subscribe(*this);
+		poll.subscribe(this, file_d, msk);
 	}
 
 	IFdOwner::~IFdOwner(){
-		poll.unsubscribe(*this);
+		poll.unsubscribe(file_desc);
 	}
 
 	int IFdOwner::fd()const{
@@ -49,7 +49,6 @@ namespace dvr {
 		int epoll_fd;
 		bool broken;
 
-		::epoll_event events[max_events];
 	public:
 		Impl():
 			broken{false}
@@ -61,12 +60,13 @@ namespace dvr {
 		}
 
 		~Impl(){
-			if(epoll_fd > 0){
+			if(epoll_fd >= 0){
 				close(epoll_fd);
 			}
 		}
 
 		bool poll(){
+			::epoll_event events[max_events];
 			if(broken){
 				return true;
 			}
@@ -76,7 +76,6 @@ namespace dvr {
 			}
 
 			for(int n = 0; n < nfds; ++n){
-				std::cout<<"FD "<<events[n].data.fd<<std::endl;
 				IFdOwner* owner = reinterpret_cast<IFdOwner*>(events[n].data.ptr);
 				if(owner){
 					owner->notify(events[n].events);
@@ -86,15 +85,14 @@ namespace dvr {
 			return broken;
 		}
 
-		void subscribe(IFdOwner& obsv){
+		void subscribe(IFdOwner* owner, int fd, uint32_t mask){
 			if(!broken){
-				int fd = obsv.fd();
+				std::cout<<"FD SUB "<<std::to_string(fd)<<std::endl;
 				assert(fd >= 0);
 				::epoll_event event;
 				memset(&event, 0, sizeof(event));
-				event.events = obsv.mask() | EPOLLET;
-				event.data.fd = fd;
-				event.data.ptr = &obsv;
+				event.events = mask | EPOLLET;
+				event.data.ptr = owner;
 				
 				if(::epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event)){
 					broken = true;
@@ -103,13 +101,10 @@ namespace dvr {
 			}
 		}
 
-		void unsubscribe(IFdOwner& obsv){
+		void unsubscribe(int fd){
 			if(!broken){
 				std::cout<<"Unsubscribed observer"<<std::endl;
-				int fd = obsv.fd();
 				assert(fd >= 0);
-				::epoll_event event;
-				event.events = obsv.mask() | EPOLLET;
 
 				if(::epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, nullptr)){
 					broken = true;
@@ -129,12 +124,12 @@ namespace dvr {
 		return impl->poll();
 	}
 
-	void EventPoll::subscribe(IFdOwner& obv){
-		impl->subscribe(obv);
+	void EventPoll::subscribe(IFdOwner* obv, int fd, uint32_t mask){
+		impl->subscribe(obv, fd, mask);
 	}
 
-	void EventPoll::unsubscribe(IFdOwner& obv){
-		impl->unsubscribe(obv);
+	void EventPoll::unsubscribe(int fd){
+		impl->unsubscribe(fd);
 	}
 
 	void EventPoll::enterScope(){
@@ -241,7 +236,8 @@ namespace dvr {
 			if( mask & EPOLLIN ){
 				read_ready = true;
 				onReadyRead();
-				std::cerr<<"memposition "<<this<<std::endl;
+				std::cerr<<"memposition stream"<<this<<std::endl;
+				std::cerr<<"memposition obsrve"<<&observer<<std::endl;
 				observer.notify(*this, IoStreamState::ReadReady);
 			}
 		}
@@ -304,6 +300,7 @@ namespace dvr {
 			write_ready = false;
 			std::cerr<<"Test"<<std::endl;
 			observer.notify(*this, IoStreamState::Broken);
+			::close(fd());
 		}
 		bool broken() const {
 			return is_broken;

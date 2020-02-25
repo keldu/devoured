@@ -26,8 +26,8 @@ namespace dvr {
 
 		bool poll();
 
-		void subscribe(IFdOwner& obsv);
-		void unsubscribe(IFdOwner& obsv);
+		void subscribe(IFdOwner* obsv, int fd, uint32_t mask);
+		void unsubscribe(int fd);
 	};
 
 	class IFdOwner {
