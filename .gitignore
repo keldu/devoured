@@ -12,3 +12,5 @@ bin/
 # ide stuff
 compile_commands.json
 tags
+
+vgcore.*
