@@ -11,8 +11,6 @@
 */
 
 int main(int argc, char** argv){
-
-
 	//createContext always creates a valid pointer
 	std::unique_ptr<dvr::Devoured> devoured = dvr::createContext(argc,argv);
 	int status_code = devoured->run();

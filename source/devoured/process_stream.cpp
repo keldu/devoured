@@ -6,25 +6,34 @@
 #include <iostream>
 
 namespace dvr {
-	ProcessStream::ProcessStream(const std::string& ef, int pid, const std::array<int,3>& fds):
+	ProcessStream::ProcessStream(const std::string& ef, int pid, std::unique_ptr<OutputStream> in, std::unique_ptr<InputStream> out, std::unique_ptr<InputStream> err):
+		exec_file{ef},
 		process_id{pid},
-		file_descriptors{fds},
-		exec_file{ef}
+		std_in{std::move(in)},
+		std_out{std::move(out)},
+		std_err{std::move(err)}
 	{
-
 	}
 
+	OutputStream& ProcessStream::in(){
+		return *std_in;
+	}
+	
+	InputStream& ProcessStream::out(){
+		return *std_out;
+	}
+	
+	InputStream& ProcessStream::err(){
+		return *std_err;
+	}
+	
 	int ProcessStream::getPID() const {
 		return process_id;
 	}
 	
-	const std::array<int,3>& ProcessStream::getFD() const {
-		return file_descriptors;
-	}
-	
-	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file){
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, AsyncIoProvider& provider, IStreamStateObserver& observer){
 		std::unique_ptr<ProcessStream> process{nullptr};
-		int fds[2][3];
+		int fds[3][2];
 
 		// Creating each pipe
 		for(int8_t i = 0; i < 3; ++i){
@@ -79,7 +88,12 @@ namespace dvr {
 			for(uint8_t i = 0; i < 3; ++i){
 				close(fds[i][1]);
 			}
-			process = std::make_unique<ProcessStream>(exec_file, pid, std::array<int,3>{fds[0][0],fds[1][0],fds[2][0]});
+
+			auto in = provider.wrapOutputFd(fds[0][0], observer);
+			auto out = provider.wrapInputFd(fds[1][0], observer);
+			auto err = provider.wrapInputFd(fds[2][0], observer);
+
+			process = std::make_unique<ProcessStream>(exec_file, pid, std::move(in), std::move(out), std::move(err));
 		}
 		return process;
 	}

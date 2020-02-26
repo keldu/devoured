@@ -29,4 +29,19 @@ namespace dvr{
 		}
 		return config;
 	}
+
+	const ServiceConfig parseServiceConfig(const std::string& path){
+		ServiceConfig config;
+		std::filesystem::path config_path{path};
+		
+		std::shared_ptr<cpptoml::table> toml_table =  cpptoml::parse_file(std::filesystem::absolute(config_path).string());
+		{
+			auto table = toml_table->get_table("Service");
+			if(!table){
+				table = cpptoml::make_table();
+				toml_table->insert("Service", table);
+			}
+		}
+		return config;
+	}
 }

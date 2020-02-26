@@ -22,6 +22,8 @@ namespace dvr {
 		bool active;
 		int status;
 	protected:
+		AsyncIoContext io_context;
+
 		void stop();
 		void setStatus(int state);
 		bool isActive()const;
