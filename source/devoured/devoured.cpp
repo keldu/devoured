@@ -20,7 +20,7 @@ namespace dvr {
 	static uid_t user_id = 0;
 	static std::string user_id_string = "";
 
-	class DaemonDevoured final : public Devoured, public IStreamStateObserver, public IServerStateObserver {
+	class DaemonDevoured final : public Devoured, public IStreamStateObserver {
 	private:
 		std::map<Devoured::Mode, std::function<void(IoStream&,const MessageRequest&)>> request_handlers;
 		/*
@@ -114,7 +114,7 @@ namespace dvr {
 				break;
 			}
 		}
-
+		/*
 		void notify(Server& server, ServerState state) override {
 			if( state == ServerState::Accept ){
 				auto connection = server.accept(*this);
@@ -125,6 +125,7 @@ namespace dvr {
 				}
 			}
 		}
+		*/
 	protected:
 		void loop() override {
 			setup();
@@ -158,7 +159,25 @@ namespace dvr {
 				stop();
 				return;
 			}
-			control_server = address->listen(*this);
+			control_server = address->listen(StreamErrorOrValueCallback<Server, Void>{
+				std::function<void(Server&, const StreamError&)>{[this](Server& source, const StreamError& error){
+					(void)source;
+					if(error.isCritical()){
+						control_server.reset();
+						stop();
+					}
+				}},
+				std::function<void(Server&, Void&&)>{[this](Server& source, Void&& val){
+					(void)val;
+					auto connection = source.accept(*this);
+					if( connection ){
+						int id = connection->id();
+						connection_map.insert(std::make_pair(id, std::move(connection)));
+						std::cout<<"IoStream registered in DaemonDevoured"<<std::endl;
+					}
+				}}
+			});
+
 			if(!control_server){
 				stop();
 			}

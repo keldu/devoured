@@ -316,7 +316,7 @@ namespace dvr {
 		bind_address{unix_addr}
 	{}
 
-	std::unique_ptr<Server> UnixSocketAddress::listen(IServerStateObserver& obsrv){
+	std::unique_ptr<Server> UnixSocketAddress::listen(StreamErrorOrValueCallback<Server, Void>&& obsrv){
 		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
 		//TODO Missing errno check in every state
 
@@ -345,7 +345,7 @@ namespace dvr {
 
 		::listen(file_descriptor, SOMAXCONN);
 
-		return std::make_unique<Server>(poll, file_descriptor, bind_address, obsrv);
+		return std::make_unique<Server>(poll, file_descriptor, bind_address, std::move(obsrv));
 	}
 	
 	std::unique_ptr<IoStream> UnixSocketAddress::connect(IStreamStateObserver& obsrv){
@@ -377,11 +377,11 @@ namespace dvr {
 	 * Based on EPoll notification accept, read or write in a non blocking way
 	 * and queue reads and/or handle writes
 	 */
-	Server::Server(EventPoll& p, int fd, const std::string& addr, IServerStateObserver& obs):
+	Server::Server(EventPoll& p, int fd, const std::string& addr, StreamErrorOrValueCallback<Server, Void>&& obs):
 		IFdOwner(p, fd, 0, EPOLLIN),
 		event_poll{p},
 		address{addr},
-		observer{obs}
+		observer{std::move(obs)}
 	{
 	}
 
@@ -391,7 +391,8 @@ namespace dvr {
 
 	void Server::notify(uint32_t mask){
 		if(mask & EPOLLIN){
-			observer.notify(*this, ServerState::Accept);
+			observer.set(*this, Void{});
+			// observer.notify(*this, ServerState::Accept);
 		}
 	}
 

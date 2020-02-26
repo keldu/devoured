@@ -8,6 +8,8 @@
 #include <optional>
 #include <functional>
 
+#include "error_callback.h"
+
 namespace dvr {
 	class UnixSocketAddress;
 	class IFdOwner;
@@ -107,22 +109,13 @@ namespace dvr {
 		virtual bool hasReadQueued() const = 0;
 	};
 	
-	enum class ServerState {
-		Accept
-	};
-	class Server;
-	class IServerStateObserver {
-	public:
-		virtual ~IServerStateObserver() = default;
-		virtual void notify(Server& server, ServerState state) = 0;
-	};
 	class Server : public IFdOwner {
 	private:
 		EventPoll& event_poll;
 		const std::string address;
-		IServerStateObserver& observer;
+		StreamErrorOrValueCallback<Server, Void> observer;
 	public:
-		Server(EventPoll& p, int fd, const std::string& addr, IServerStateObserver& srv);
+		Server(EventPoll& p, int fd, const std::string& addr, StreamErrorOrValueCallback<Server, Void>&& obsrv);
 		~Server();
 
 		void notify(uint32_t mask) override;
@@ -137,7 +130,7 @@ namespace dvr {
 	public:
 		UnixSocketAddress(EventPoll& p, const std::string& unix_address);
 
-		std::unique_ptr<Server> listen(IServerStateObserver& obsrv);
+		std::unique_ptr<Server> listen(StreamErrorOrValueCallback<Server, Void>&& obsrv);
 		std::unique_ptr<IoStream> connect(IStreamStateObserver& obsrv);
 
 		const std::string& getPath() const;
