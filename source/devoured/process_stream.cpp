@@ -85,17 +85,15 @@ namespace dvr {
 			// Or just keep a record of service information and create the process stream only when needed.
 			
 			std::vector<char*> arg_array;
-			arg_array.resize(arguments.size()+2);
-			arg_array.front() = const_cast<char*>(exec_file.data());
 			// Fill argument array except for the front and back
 			
-			size_t arg_array_size = arg_array.size()<1?0:arg_array.size()-1;
-			for(size_t i = 1; i < arg_array_size; ++i){
-				arg_array.at(i) = {const_cast<char*>(exec_file.data())};
+			arg_array.reserve(arguments.size()+2);
+			arg_array.push_back(const_cast<char*>(exec_file.data()));
+			for(auto& arg : arguments){
+				arg_array.push_back(const_cast<char*>(arg.data()));
 			}
+			arg_array.push_back(nullptr);
 			
-			arg_array.back() = nullptr;
-
 			int rv = ::execvp(exec_file.data(), arg_array.data());
 
 			if(rv < 0){
