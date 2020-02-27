@@ -32,5 +32,5 @@ namespace dvr {
 		int getPID() const;
 	};
 
-	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, AsyncIoProvider& provider, IStreamStateObserver& obsrv);
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments, AsyncIoProvider& provider, IStreamStateObserver& obsrv);
 }

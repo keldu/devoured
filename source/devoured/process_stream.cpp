@@ -31,7 +31,7 @@ namespace dvr {
 		return process_id;
 	}
 	
-	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, AsyncIoProvider& provider, IStreamStateObserver& observer){
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments, AsyncIoProvider& provider, IStreamStateObserver& observer){
 		std::unique_ptr<ProcessStream> process{nullptr};
 		int fds[3][2];
 
@@ -83,7 +83,30 @@ namespace dvr {
 			// For SIGTERM handling etc
 			// 
 			// Or just keep a record of service information and create the process stream only when needed.
-			execlp("terraria", "terraria", NULL);
+			
+			std::vector<char*> arg_array;
+			arg_array.resize(arguments.size()+2);
+			arg_array.front() = const_cast<char*>(exec_file.data());
+			// Fill argument array except for the front and back
+			
+			size_t arg_array_size = arg_array.size()<1?0:arg_array.size()-1;
+			for(size_t i = 1; i < arg_array_size; ++i){
+				arg_array.at(i) = {const_cast<char*>(exec_file.data())};
+			}
+			
+			arg_array.back() = nullptr;
+
+			int rv = ::execvp(exec_file.data(), arg_array.data());
+
+			if(rv < 0){
+				for(uint8_t i = 0; i < 3; ++i){
+					close(fds[i][1]);
+				}
+			}
+			/*
+			 * If the creation of the environemnt fails, then just kill the child.
+			 */
+			exit(-1);
 		}else{
 			for(uint8_t i = 0; i < 3; ++i){
 				close(fds[i][1]);
