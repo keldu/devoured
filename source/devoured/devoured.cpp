@@ -15,6 +15,8 @@
 #include "signal_handler.h"
 #include "network/protocol.h"
 
+#define CONFIG_LOCATION "config.toml"
+
 namespace dvr {
 	// TODO integrate in non static way. Maybe integrate this in the devoured base class
 	static uid_t user_id = 0;
@@ -87,7 +89,8 @@ namespace dvr {
 			},
 			next_update{std::chrono::steady_clock::now()},
 			config_path{f}
-    	{}
+    	{
+		}
     
 		void notify(IoStream& conn, IoStreamState state) override {
 			switch(state){
@@ -142,6 +145,7 @@ namespace dvr {
 		std::string config_path;
 	private:
 		void setup(){
+			// std::filesystem
 			config = parseConfig(config_path);
 			
 			setupControlInterface();
@@ -319,7 +323,7 @@ namespace dvr {
 				break;
 			}
 			case Parameter::Mode::DAEMON:{
-				context = std::make_unique<DaemonDevoured>("config.toml");
+				context = std::make_unique<DaemonDevoured>(CONFIG_LOCATION);
 				break;
 			}
 			case Parameter::Mode::CREATE:{
