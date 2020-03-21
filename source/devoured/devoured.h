@@ -14,7 +14,10 @@ namespace dvr {
 			DAEMON,
 			STATUS
 		};
-		Devoured(bool act, int sta);
+		/*
+		 * Invalid state, because I am too lazy
+		 */
+		Devoured(bool act, int sta, Environment&& env);
 		virtual ~Devoured() = default;
 
 		int run();
@@ -22,6 +25,7 @@ namespace dvr {
 		bool active;
 		int status;
 	protected:
+		Environment environment;
 		AsyncIoContext io_context;
 
 		void stop();

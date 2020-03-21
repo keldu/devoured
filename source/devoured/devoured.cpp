@@ -15,13 +15,9 @@
 #include "signal_handler.h"
 #include "network/protocol.h"
 
-#define CONFIG_LOCATION "config.toml"
+namespace fs = std::filesystem;
 
 namespace dvr {
-	// TODO integrate in non static way. Maybe integrate this in the devoured base class
-	static uid_t user_id = 0;
-	static std::string user_id_string = "";
-
 	class DaemonDevoured final : public Devoured, public IStreamStateObserver {
 	private:
 		std::map<Devoured::Mode, std::function<void(IoStream&,const MessageRequest&)>> request_handlers;
@@ -82,13 +78,12 @@ namespace dvr {
 			}
 		}
 	public:
-		DaemonDevoured(const std::string& f):
-			Devoured(true, 0),
+		DaemonDevoured(Environment&& env):
+			Devoured(true, 0, std::move(env)),
 			request_handlers{
 				{Devoured::Mode::STATUS,std::bind(&DaemonDevoured::handleStatus, this, std::placeholders::_1, std::placeholders::_2)}
 			},
-			next_update{std::chrono::steady_clock::now()},
-			config_path{f}
+			next_update{std::chrono::steady_clock::now()}
     	{
 		}
     
@@ -141,24 +136,23 @@ namespace dvr {
 				to_be_destroyed.clear();
 			}
 		}
-
-		std::string config_path;
 	private:
 		void setup(){
 			// std::filesystem
-			config = parseConfig(config_path);
+			config = environment.parseConfig();
 			
 			setupControlInterface();
 		}
 
 		void setupControlInterface(){
-			std::string socket_path = config.control_iloc;
-			socket_path += config.control_name + user_id_string;
+			std::string sock_file = std::string{"default-"}+std::to_string(environment.userId());
+			auto sock_path = environment.tmpPath();
+			sock_path = sock_path / sock_file;
 
 			// unix_socket_address = std::make_unique<UnixSocketAddress>(poll, socket_path);
 			// TODO: Check correct file path somewhere
 
-			auto address = io_context.provider->parseUnixAddress(socket_path);
+			auto address = io_context.provider->parseUnixAddress(sock_path.native());
 			if(!address){
 				stop();
 				return;
@@ -195,8 +189,8 @@ namespace dvr {
 	
 	class InvalidDevoured final : public Devoured {
 	public:
-		InvalidDevoured():
-			Devoured(false, -1)
+		InvalidDevoured(Environment&& env):
+			Devoured(false, -1,std::move(env))
 		{}
 	protected:
 		void loop(){}
@@ -204,8 +198,8 @@ namespace dvr {
 
 	class SpawnDevoured final : public Devoured {
 	public:
-		SpawnDevoured():
-			Devoured(true, 0)
+		SpawnDevoured(Environment&& env):
+			Devoured(true, 0, std::move(env))
 		{}
 	protected:
 		void loop(){
@@ -224,8 +218,8 @@ namespace dvr {
 		
 		const std::string target;
 	public:
-		StatusDevoured(const Parameter& params):
-			Devoured(true, 0),
+		StatusDevoured(Environment&& env, const Parameter& params):
+			Devoured(true, 0, std::move(env)),
 			req_id{0},
 			connection{nullptr},
 			next_update{std::chrono::steady_clock::now()},
@@ -262,7 +256,14 @@ namespace dvr {
 		}
 	private:
 		void setup(){
-			auto address = io_context.provider->parseUnixAddress(std::string{"/tmp/devoured/default"}+user_id_string);
+			if(!fs::create_directories(environment.tmpPath())){
+				stop();
+				return;
+			}
+			std::string unix_port_path = std::string{"default-"}+std::to_string(environment.userId());
+			auto tmp_path = environment.tmpPath();
+			tmp_path = tmp_path/unix_port_path;
+			auto address = io_context.provider->parseUnixAddress(std::string{tmp_path.native()}+std::to_string(environment.userId()));
 			if(!address){
 				stop();
 				return;
@@ -284,9 +285,10 @@ namespace dvr {
 		}
 	};
 
-	Devoured::Devoured(bool act, int sta):
+	Devoured::Devoured(bool act, int sta, Environment&& env):
 		active{act},
 		status{sta},
+		environment{std::move(env)},
 		io_context{setupAsyncIo()}
 	{
 		register_signal_handlers();
@@ -310,33 +312,35 @@ namespace dvr {
 	}
 
 	std::unique_ptr<Devoured> createContext(int argc, char** argv){
-		user_id = ::getuid();
-		std::stringstream ss;
-		ss<<"-"<<user_id;
-		user_id_string = ss.str();
-
 		std::unique_ptr<Devoured> context;
+		std::optional<Environment> env = setupEnvironment();
+		if(!env.has_value()){
+			std::cerr<<"Couldn't setup environment"<<std::endl;
+			Environment env_dummy;
+			context = std::make_unique<InvalidDevoured>(std::move(env_dummy));
+			return context;
+		}
 		const Parameter parameter = parseParams(argc, argv);
 		switch(parameter.mode){
 			case Parameter::Mode::INVALID:{
-				context = std::make_unique<InvalidDevoured>();
+				context = std::make_unique<InvalidDevoured>(std::move(env.value()));
 				break;
 			}
 			case Parameter::Mode::DAEMON:{
-				context = std::make_unique<DaemonDevoured>(CONFIG_LOCATION);
+				context = std::make_unique<DaemonDevoured>(std::move(env.value()));
 				break;
 			}
 			case Parameter::Mode::CREATE:{
-				context = std::make_unique<SpawnDevoured>();
+				context = std::make_unique<SpawnDevoured>(std::move(env.value()));
 				break;
 			}
 			case Parameter::Mode::STATUS: {
-				context = std::make_unique<StatusDevoured>(parameter);
+				context = std::make_unique<StatusDevoured>(std::move(env.value()), parameter);
 				break;
 			}
 			default:{
 				std::cerr<<"Unimplemented case"<<std::endl;
-				context = std::make_unique<InvalidDevoured>();
+				context = std::make_unique<InvalidDevoured>(std::move(env.value()));
 				break;
 			}
 		}
