@@ -256,14 +256,20 @@ namespace dvr {
 		}
 	private:
 		void setup(){
-			if(!fs::create_directories(environment.tmpPath())){
-				stop();
-				return;
-			}
 			std::string unix_port_path = std::string{"default-"}+std::to_string(environment.userId());
 			auto tmp_path = environment.tmpPath();
 			tmp_path = tmp_path/unix_port_path;
-			auto address = io_context.provider->parseUnixAddress(std::string{tmp_path.native()}+std::to_string(environment.userId()));
+			if(!fs::exists(tmp_path)){
+				std::cerr<<tmp_path.native()<<" doesn't exist"<<std::endl;
+				stop();
+				return;
+			}
+			if(!fs::is_socket(tmp_path)){
+				std::cerr<<tmp_path.native()<<" is not a unix socket"<<std::endl;
+				stop();
+				return;
+			}
+			auto address = io_context.provider->parseUnixAddress(std::string{tmp_path.native()});
 			if(!address){
 				stop();
 				return;

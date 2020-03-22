@@ -105,7 +105,8 @@ namespace dvr{
 			if(home_env){
 				fs::path usr_home{home_env};
 				config_dir = usr_home.concat(std::string{"/"}+USER_CONFIG_DIR);
-				std::cerr<<"Home "<<config_dir.native()<<std::endl;
+				// TODO remove this
+				std::cout<<"Home "<<config_dir.native()<<std::endl;
 			}else{
 				std::cerr<<"HOME env variable not set"<<std::endl;
 				return std::nullopt;
