@@ -8,32 +8,21 @@
 namespace dvr {
 	struct Parameter{
 	public:
-		// TODO Use the enum class Devoured::Mode and remove this later on
-		enum class Mode : uint8_t{
-			INVALID,
-			DAEMON,
-			STATUS,
-			INTERACTIVE,
-			COMMAND,
-			ALIAS,
-			CREATE,
-			DESTROY,
-			MANAGE
-		};
-
 		//CONFIG VALUES
-		Mode mode;
+		Devoured::Mode mode;
 
 		std::string path;
 
-		bool interactive;
-		bool status;
-		std::optional<std::string> alias;
-		std::optional<std::string> command;
-		bool devour;
-		bool spawn;
+		bool interactive = false;
+		bool status = false;
+		bool devour = false;
+		bool spawn = false;
+		
+		std::optional<std::string> alias = std::nullopt;
+		std::optional<std::string> command = std::nullopt;
 
-		std::optional<std::string> target;
+		std::optional<std::string> target = std::nullopt;
+		std::optional<std::string> control = std::nullopt;
 	};
 
 	const Parameter parseParams(int argc, char** argv);

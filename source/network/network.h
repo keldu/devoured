@@ -7,6 +7,7 @@
 #include <queue>
 #include <optional>
 #include <functional>
+#include <chrono>
 
 #include "error_callback.h"
 
@@ -27,6 +28,7 @@ namespace dvr {
 		void leaveScope();
 
 		bool poll();
+		bool wait(std::chrono::steady_clock::duration duration);
 
 		void subscribe(IFdOwner* obsv, int fd, uint32_t mask);
 		void unsubscribe(int fd);
@@ -155,6 +157,7 @@ namespace dvr {
 		~WaitScope();
 
 		void poll();
+		void wait(std::chrono::steady_clock::duration duration);
 	};
 
 	struct AsyncIoContext {

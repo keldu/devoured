@@ -68,14 +68,14 @@ namespace dvr {
 			}
 		}
 
-		bool poll(){
+		bool poll(int timeout){
 			running = true;
 			::epoll_event events[max_events];
 			if(broken){
 				std::cerr<<"Epoll broken"<<std::endl;
 				return true;
 			}
-			int nfds = ::epoll_wait(epoll_fd, events, max_events, -1);
+			int nfds = ::epoll_wait(epoll_fd, events, max_events, timeout);
 			if(nfds < 0){
 				return broken = true;
 			}
@@ -125,7 +125,11 @@ namespace dvr {
 	EventPoll::~EventPoll(){}
 
 	bool EventPoll::poll(){
-		return impl->poll();
+		return impl->poll(-1);
+	}
+
+	bool EventPoll::wait(std::chrono::steady_clock::duration dur){
+		return impl->poll(std::chrono::duration_cast<std::chrono::milliseconds>(dur).count());
 	}
 
 	void EventPoll::subscribe(IFdOwner* obv, int fd, uint32_t mask){
@@ -461,6 +465,10 @@ namespace dvr {
 
 	void WaitScope::poll(){
 		e_poll.poll();
+	}
+
+	void WaitScope::wait(std::chrono::steady_clock::duration duration){
+		e_poll.wait(duration);
 	}
 
 	AsyncIoContext setupAsyncIo(){

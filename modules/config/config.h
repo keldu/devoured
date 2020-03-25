@@ -38,7 +38,7 @@ namespace dvr {
 		/*
 		 * Stop command
 		 */
-		std::optional<std::string> stop_command;
+		std::optional<std::string> stop_command = std::nullopt;
 	
 		/*
 		 * Optionally map signals like SIGINT etc to some command
@@ -50,8 +50,9 @@ namespace dvr {
 		std::map<std::string, std::string> alias_translation;
 	};
 
-	const ServiceConfig parseService(const std::string& path);
+	bool parseService(ServiceConfig& config, const std::string& path);
 	
+	// TODO move environment somewhere to sources
 	class Environment {
 	private:
 		uid_t user_id;
@@ -71,18 +72,33 @@ namespace dvr {
 		 * Default constructor for invalid states
 		 */
 		Environment();
+		~Environment();
+		Environment(Environment&& e);
+		Environment& operator=(Environment&& e);
+
+		Environment(const Environment& e) = delete;
+		Environment& operator=(const Environment& e) = delete;
 
 		bool isRoot() const;
 
 		const Config parseConfig();
+		std::optional<ServiceConfig> parseService(const std::string& target);
 		const std::vector<ServiceConfig> parseServices();
 
 		uid_t userId() const{
 			return user_id;
 		}
 
+		const std::filesystem::path& configPath() const {
+			return config_path;
+		}
+
 		const std::filesystem::path& tmpPath() const {
 			return temp_devoured_dir;
+		}
+
+		const std::filesystem::path& serviceConfigPath() const {
+			return service_directory;
 		}
 	};
 
@@ -96,5 +112,8 @@ namespace dvr {
 	 * On fail, return std::nullopt_t ( or however it was called )
 	 * Exceptions would be ok, but I dislike exceptions.
 	 */
+
 	std::optional<Environment> setupEnvironment();
+
+	Environment& globalEnvironment();
 }

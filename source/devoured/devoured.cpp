@@ -13,6 +13,7 @@
 
 #include "arguments/parameter.h"
 #include "signal_handler.h"
+#include "service.h"
 #include "network/protocol.h"
 
 namespace fs = std::filesystem;
@@ -31,25 +32,32 @@ namespace dvr {
 		 * Key - Target - String
 		 * Value - Target Configuration and State
 		 */
-		std::map<std::string, int> targets;
+		std::map<std::string, Service> targets;
 		
 		std::chrono::steady_clock::time_point next_update;
 
 		std::list<std::unique_ptr<IoStream>> to_be_destroyed;
 
+		bool answerRequest(IoStream& connection, uint16_t rid, const std::string& target, const std::string& answer, ReturnCode code = ReturnCode::OK){
+			MessageResponse response {
+				rid,
+				static_cast<uint8_t>(code),
+				target,
+				answer
+			};
+			return asyncWriteResponse(connection, response);
+		}
+
 		void handleStatus(IoStream& connection, const MessageRequest& req){
 			std::cout<<"Handling status messages"<<std::endl;
 			auto t_find = targets.find(req.target);
 			if(t_find != targets.end()){
-
 			}else if(req.target.empty()){
-				MessageResponse resp{
+				if(!answerRequest(connection, 
 					req.request_id,
-					static_cast<uint8_t>(ReturnCode::OK),
 					req.target,
 					"Currently no service registered"
-				};
-				if(!asyncWriteResponse(connection, resp)){
+				)){
 					std::cerr<<"Response in error mode"<<std::endl;
 					stop();
 				}
@@ -77,11 +85,81 @@ namespace dvr {
 				}
 			}
 		}
+
+		void handleStart(IoStream& connection, const MessageRequest& req){
+			std::cout<<"Handling start message"<<std::endl;
+			auto t_find = targets.find(req.target);
+			if(t_find != targets.end()){
+				
+				t_find->second.start();
+				
+				MessageResponse resp{
+					req.request_id,
+					static_cast<uint8_t>(ReturnCode::OK),
+					req.target,
+					"Starting service"
+				};
+				if(!asyncWriteResponse(connection, resp)){
+					std::cerr<<"Response in error mode"<<std::endl;
+					stop();
+				}
+			}else if(req.target.empty()){
+				MessageResponse resp{
+					req.request_id,
+					static_cast<uint8_t>(ReturnCode::OK),
+					req.target,
+					"Target can't be empty on start"
+				};
+				if(!asyncWriteResponse(connection, resp)){
+					std::cerr<<"Response in error mode"<<std::endl;
+					stop();
+				}
+			}else if(req.target == "devoured"){
+				MessageResponse resp{
+					req.request_id,
+					static_cast<uint8_t>(ReturnCode::OK),
+					req.target,
+					"Devoured is a reserved target name. Can't be started."
+				};
+				if(!asyncWriteResponse(connection, resp)){
+					std::cerr<<"Response in error mode"<<std::endl;
+					stop();
+				}
+			}else{
+				std::cout<<"Trying to reload config file"<<std::endl;
+				auto opt_srv_config = environment.parseService(req.target);
+				if(opt_srv_config){
+					ServiceConfig& srv_config = opt_srv_config.value();
+					MessageResponse resp{
+						req.request_id,
+						static_cast<uint8_t>(ReturnCode::OK),
+						req.target,
+						"Loading and starting target"
+					};
+					if(!asyncWriteResponse(connection, resp)){
+						std::cerr<<"Response in error mode"<<std::endl;
+						stop();
+					}
+				}else{
+					MessageResponse resp{
+						req.request_id,
+						static_cast<uint8_t>(ReturnCode::OK),
+						req.target,
+						"Couldn't read config file"
+					};
+					if(!asyncWriteResponse(connection, resp)){
+						std::cerr<<"Response in error mode"<<std::endl;
+						stop();
+					}
+				}
+			}
+		}
 	public:
 		DaemonDevoured(Environment&& env):
 			Devoured(true, 0, std::move(env)),
 			request_handlers{
-				{Devoured::Mode::STATUS,std::bind(&DaemonDevoured::handleStatus, this, std::placeholders::_1, std::placeholders::_2)}
+				{Devoured::Mode::STATUS,std::bind(&DaemonDevoured::handleStatus, this, std::placeholders::_1, std::placeholders::_2)},
+				{Devoured::Mode::START, std::bind(&DaemonDevoured::handleStart, this, std::placeholders::_1, std::placeholders::_2)}
 			},
 			next_update{std::chrono::steady_clock::now()}
     	{
@@ -112,27 +190,11 @@ namespace dvr {
 				break;
 			}
 		}
-		/*
-		void notify(Server& server, ServerState state) override {
-			if( state == ServerState::Accept ){
-				auto connection = server.accept(*this);
-				if(connection){
-					int id = connection->id();
-					connection_map.insert(std::make_pair(id, std::move(connection)));
-					std::cout<<"IoStream registered in DaemonDevoured"<<std::endl;
-				}
-			}
-		}
-		*/
 	protected:
 		void loop() override {
 			setup();
 			while(isActive()){
-				std::this_thread::sleep_until(next_update);
-				next_update += std::chrono::milliseconds{1000};
-
-				// Update all subsystems like network ...
-				io_context.wait_scope.poll();
+				io_context.wait_scope.wait(std::chrono::milliseconds{1000});
 				to_be_destroyed.clear();
 			}
 		}
@@ -193,36 +255,56 @@ namespace dvr {
 			Devoured(false, -1,std::move(env))
 		{}
 	protected:
-		void loop(){}
+		void loop()override{}
 	};
 
-	class SpawnDevoured final : public Devoured {
-	public:
-		SpawnDevoured(Environment&& env):
-			Devoured(true, 0, std::move(env))
-		{}
-	protected:
-		void loop(){
-			while(isActive()){
+	class ControlDevoured final : public Devoured, public IStreamStateObserver {
+	private:
+		const Parameter parameters;
+		uint16_t req_id;
+		std::unique_ptr<IoStream> connection;
+		const std::string target;
+
+		void setup(){
+			std::string unix_port_path = std::string{"default-"}+std::to_string(environment.userId());
+			auto tmp_path = environment.tmpPath();
+			tmp_path = tmp_path/unix_port_path;
+			
+			if(!fs::exists(tmp_path)){
+				std::cerr<<tmp_path.native()<<" doesn't exist"<<std::endl;
+				stop();
+				return;
+			}
+			if(!fs::is_socket(tmp_path)){
+				std::cerr<<tmp_path.native()<<" is not a unix socket"<<std::endl;
+				stop();
+				return;
+			}
+			auto address = io_context.provider->parseUnixAddress(std::string{tmp_path.native()});
+			if(!address){
+				stop();
+				return;
+			}
+			connection = address->connect(*this);
+			MessageRequest msg{
+				0,
+				static_cast<uint8_t>(parameters.mode),
+				target,
+				""
+			};
+			if(connection){
+				if(!asyncWriteRequest(*connection, msg)){
+					stop();
+				}
+			}else{
+				stop();
 			}
 		}
-	};
-
-	class StatusDevoured final : public Devoured, public IStreamStateObserver {
-	private:
-		uint16_t req_id;
-
-		std::unique_ptr<IoStream> connection;
-		
-		std::chrono::steady_clock::time_point next_update;
-		
-		const std::string target;
 	public:
-		StatusDevoured(Environment&& env, const Parameter& params):
+		ControlDevoured(Environment&& env, const Parameter& params):
 			Devoured(true, 0, std::move(env)),
-			req_id{0},
+			parameters{params},
 			connection{nullptr},
-			next_update{std::chrono::steady_clock::now()},
 			target{params.target.has_value()?(*params.target):""}
 		{}
 
@@ -249,9 +331,50 @@ namespace dvr {
 		void loop()override{
 			setup();
 			while(isActive()){
-				std::this_thread::sleep_until(next_update);
-				next_update += std::chrono::milliseconds{1000};
-				io_context.wait_scope.poll();
+				io_context.wait_scope.wait(std::chrono::milliseconds{1000});
+			}
+		}
+	};
+
+	class StatusDevoured final : public Devoured, public IStreamStateObserver {
+	private:
+		uint16_t req_id;
+
+		std::unique_ptr<IoStream> connection;
+		
+		const std::string target;
+	public:
+		StatusDevoured(Environment&& env, const Parameter& params):
+			Devoured(true, 0, std::move(env)),
+			req_id{0},
+			connection{nullptr},
+			target{params.target.has_value()?(*params.target):""}
+		{}
+
+		void notify(IoStream& conn, IoStreamState state) override {
+			switch(state){
+				case IoStreamState::ReadReady:{
+					auto opt_msg = asyncReadResponse(conn);
+					if(opt_msg.has_value()){
+						std::cout<<(*opt_msg)<<std::endl;
+						stop();
+					}
+				}
+				break;
+				case IoStreamState::Broken:{
+					stop();
+				}
+				break;
+				case IoStreamState::WriteReady:{
+				}
+				break;
+			}
+		}
+	protected:
+		void loop()override{
+			setup();
+			while(isActive()){
+				io_context.wait_scope.wait(std::chrono::milliseconds{1000});
 			}
 		}
 	private:
@@ -277,7 +400,7 @@ namespace dvr {
 			connection = address->connect(*this);
 			MessageRequest msg{
 				0,
-				static_cast<uint8_t>(Parameter::Mode::STATUS),
+				static_cast<uint8_t>(Devoured::Mode::STATUS),
 				target,
 				""
 			};
@@ -328,19 +451,23 @@ namespace dvr {
 		}
 		const Parameter parameter = parseParams(argc, argv);
 		switch(parameter.mode){
-			case Parameter::Mode::INVALID:{
+			case Devoured::Mode::INVALID:{
 				context = std::make_unique<InvalidDevoured>(std::move(env.value()));
 				break;
 			}
-			case Parameter::Mode::DAEMON:{
+			case Devoured::Mode::DAEMON:{
 				context = std::make_unique<DaemonDevoured>(std::move(env.value()));
 				break;
 			}
-			case Parameter::Mode::CREATE:{
-				context = std::make_unique<SpawnDevoured>(std::move(env.value()));
+			case Devoured::Mode::START:
+			case Devoured::Mode::STOP:
+			case Devoured::Mode::ENABLE:
+			case Devoured::Mode::DISABLE:
+			{
+				context = std::make_unique<ControlDevoured>(std::move(env.value()), parameter);
 				break;
 			}
-			case Parameter::Mode::STATUS: {
+			case Devoured::Mode::STATUS: {
 				context = std::make_unique<StatusDevoured>(std::move(env.value()), parameter);
 				break;
 			}

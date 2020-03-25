@@ -12,7 +12,15 @@ namespace dvr {
 		enum class Mode: uint8_t {
 			INVALID,
 			DAEMON,
-			STATUS
+			STATUS,
+			COMMAND,
+			ALIAS,
+			INTERACTIVE,
+			// Control states
+			START,
+			STOP,
+			ENABLE,
+			DISABLE
 		};
 		/*
 		 * Invalid state, because I am too lazy
