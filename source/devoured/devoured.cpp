@@ -135,8 +135,8 @@ namespace dvr {
 					ServiceConfig& srv_config = opt_srv_config.value();
 					
 					// Since i checked it earlier, no req.target should exist
-					targets.insert(std::make_pair(req.target, createService(srv_config)));
-
+					auto inserted = targets.insert(std::make_pair(req.target, createService(srv_config, *io_context.provider)));
+					inserted.first->second.start();
 					MessageResponse resp{
 						req.request_id,
 						static_cast<uint8_t>(ReturnCode::OK),

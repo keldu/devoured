@@ -9,6 +9,18 @@ namespace dvr {
 	{
 	}
 
+	Service::~Service(){
+	}
+
+	Service::Service(Service&& service):
+		config{service.config},
+		provider{service.provider},
+		process{std::move(service.process)},
+		state{service.state}
+	{
+		service.state = State::BROKEN;
+	}
+
 	void Service::start(){
 		if(state==State::ON){
 			if(!process){
@@ -19,7 +31,7 @@ namespace dvr {
 		state = State::ON;
 
 		// TODO add provider somehow
-		process = nullptr; //createProcessStream("/usr/bin/ping",{"8.8.8.8"}, provider, *this);
+		process = createProcessStream(config.start_command, config.arguments, provider, *this);
 		if(!process){
 			state = State::BROKEN;
 			return;
