@@ -56,7 +56,7 @@ namespace dvr{
 			toml_table = cpptoml::parse_file(path);
 		}
 		catch(std::exception& e){
-			std::cerr<<"No config file found at ( "<<path<<" ) Consider creating one."<<e.what()<<std::endl;
+			std::cerr<<"No service config file found at ( "<<path<<" ) Consider creating one."<<e.what()<<std::endl;
 			return false;
 		}
 		{
@@ -65,7 +65,7 @@ namespace dvr{
 				table = cpptoml::make_table();
 				toml_table->insert("Service", table);
 			}
-			config.working_directory = table->get_as<std::string>("WorkingDir").value_or(config.working_directory);
+			config.working_directory = table->get_as<std::string>("WorkingDirectory").value_or(config.working_directory);
 			config.start_command = table->get_as<std::string>("Start").value_or(config.start_command);
 			auto stop_opt = table->get_as<std::string>("Stop");
 			if(stop_opt){

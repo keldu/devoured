@@ -30,6 +30,8 @@ namespace dvr {
 		std::deque<std::string> output_buffer;
 	public:
 		Service(const ServiceConfig& config, AsyncIoProvider& provider);
+		~Service();
+
 		Service(Service&&);
 		Service& operator=(Service&&);
 
@@ -43,4 +45,6 @@ namespace dvr {
 			std::cout<<"Program doing sth"<<std::endl;
 		}
 	};
+
+	Service createService(const ServiceConfig& config, AsyncIoProvider& provider);
 }

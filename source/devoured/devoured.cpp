@@ -86,6 +86,9 @@ namespace dvr {
 			}
 		}
 
+		/*
+		* TODO split into multiple functions
+		*/
 		void handleStart(IoStream& connection, const MessageRequest& req){
 			std::cout<<"Handling start message"<<std::endl;
 			auto t_find = targets.find(req.target);
@@ -126,10 +129,14 @@ namespace dvr {
 					stop();
 				}
 			}else{
-				std::cout<<"Trying to reload config file"<<std::endl;
+				std::cout<<"Loading config file "<<std::endl;
 				auto opt_srv_config = environment.parseService(req.target);
 				if(opt_srv_config){
 					ServiceConfig& srv_config = opt_srv_config.value();
+					
+					// Since i checked it earlier, no req.target should exist
+					targets.insert(std::make_pair(req.target, createService(srv_config)));
+
 					MessageResponse resp{
 						req.request_id,
 						static_cast<uint8_t>(ReturnCode::OK),

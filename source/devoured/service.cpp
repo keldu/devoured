@@ -6,7 +6,8 @@ namespace dvr {
 		provider{provider},
 		process{nullptr},
 		state{State::OFF}
-	{}
+	{
+	}
 
 	void Service::start(){
 		if(state==State::ON){
@@ -18,7 +19,7 @@ namespace dvr {
 		state = State::ON;
 
 		// TODO add provider somehow
-		process = createProcessStream("/usr/bin/ping",{"8.8.8.8"}, provider, *this);
+		process = nullptr; //createProcessStream("/usr/bin/ping",{"8.8.8.8"}, provider, *this);
 		if(!process){
 			state = State::BROKEN;
 			return;
@@ -26,5 +27,9 @@ namespace dvr {
 	}
 
 	void Service::stop(){
+	}
+
+	Service createService(const ServiceConfig& config, AsyncIoProvider& provider){
+		return Service{config, provider};
 	}
 }
