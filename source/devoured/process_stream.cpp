@@ -31,7 +31,7 @@ namespace dvr {
 		return process_id;
 	}
 	
-	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments, AsyncIoProvider& provider, IStreamStateObserver& observer){
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments, const std::string& working_directory, AsyncIoProvider& provider, IStreamStateObserver& observer){
 		std::unique_ptr<ProcessStream> process{nullptr};
 		int fds[3][2];
 
@@ -67,6 +67,10 @@ namespace dvr {
 				}
 			}
 		}else if( pid == 0 ){
+			int rc = chdir(working_directory.c_str());
+			if( rc < 0){
+				exit(1);
+			}
 			/* 
 			 * replaces all default streams with the following fds 
 			 * and closes the parent fds

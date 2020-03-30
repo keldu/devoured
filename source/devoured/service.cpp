@@ -31,7 +31,7 @@ namespace dvr {
 		state = State::ON;
 
 		// TODO add provider somehow
-		process = createProcessStream(config.start_command, config.arguments, provider, *this);
+		process = createProcessStream(config.start_command, config.arguments, config.working_directory, provider, *this);
 		if(!process){
 			state = State::BROKEN;
 			return;

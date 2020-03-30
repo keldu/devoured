@@ -66,7 +66,23 @@ namespace dvr{
 				toml_table->insert("Service", table);
 			}
 			config.working_directory = table->get_as<std::string>("WorkingDirectory").value_or(config.working_directory);
-			config.start_command = table->get_as<std::string>("Start").value_or(config.start_command);
+			/*
+			* Split the start command into the proper format
+			*/
+			std::string command = table->get_as<std::string>("Start").value_or("");
+			std::stringstream ss{command};
+			std::string token;
+			char delimiter = ' ';
+			if(std::getline(ss, token, delimiter)){
+				config.start_command = token;
+				while(std::getline(ss, token, delimiter)){
+					config.arguments.push_back(token);
+				}
+			}else{
+				std::cerr<<"No command was set"<<std::endl;
+				return false;
+			}
+
 			auto stop_opt = table->get_as<std::string>("Stop");
 			if(stop_opt){
 				config.stop_command = *stop_opt;
