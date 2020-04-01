@@ -1,7 +1,9 @@
 #include "process_stream.h"
 
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include <iostream>
 
@@ -29,6 +31,16 @@ namespace dvr {
 	
 	int ProcessStream::getPID() const {
 		return process_id;
+	}
+
+	bool ProcessStream::stop() {
+		int rv = ::kill(process_id, SIGTERM);
+		return rv < 0;
+	}
+
+	bool ProcessStream::kill() {
+		int rv = ::kill(process_id, SIGKILL);
+		return rv < 0;
 	}
 	
 	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments, const std::string& working_directory, AsyncIoProvider& provider, IStreamStateObserver& observer){

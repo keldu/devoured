@@ -8,6 +8,8 @@
 
 #include <sys/types.h>
 
+#include "devoured/command.h"
+
 namespace dvr {
 	struct Config {
 		//Flag to set/check invalid config
@@ -39,6 +41,10 @@ namespace dvr {
 		 * Stop command
 		 */
 		std::optional<std::string> stop_command = std::nullopt;
+		
+		/*
+		* Stop arguments
+		*/
 	
 		/*
 		 * Optionally map signals like SIGINT etc to some command

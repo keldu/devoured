@@ -19,7 +19,7 @@ namespace dvr {
 		enum class State : uint8_t {
 			ON,
 			OFF,
-			BROKEN
+			TERMINATED
 		};
 		const ServiceConfig config;
 		AsyncIoProvider& provider;
