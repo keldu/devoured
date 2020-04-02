@@ -68,14 +68,14 @@ namespace dvr {
 			}
 		}
 
-		bool poll(){
+		bool poll(int timeout){
 			running = true;
 			::epoll_event events[max_events];
 			if(broken){
 				std::cerr<<"Epoll broken"<<std::endl;
 				return true;
 			}
-			int nfds = ::epoll_wait(epoll_fd, events, max_events, -1);
+			int nfds = ::epoll_wait(epoll_fd, events, max_events, timeout);
 			if(nfds < 0){
 				return broken = true;
 			}
@@ -125,7 +125,11 @@ namespace dvr {
 	EventPoll::~EventPoll(){}
 
 	bool EventPoll::poll(){
-		return impl->poll();
+		return impl->poll(-1);
+	}
+
+	bool EventPoll::wait(std::chrono::steady_clock::duration dur){
+		return impl->poll(std::chrono::duration_cast<std::chrono::milliseconds>(dur).count());
 	}
 
 	void EventPoll::subscribe(IFdOwner* obv, int fd, uint32_t mask){
@@ -149,7 +153,7 @@ namespace dvr {
 	class FdStream final: public IFdOwner, public IoStream {
 	private:
 		EventPoll& poll;
-		IStreamStateObserver& observer;
+		StreamErrorOrValueCallback<IoStream, IoStreamState> observer;
 		
 		bool is_broken;
 
@@ -212,10 +216,10 @@ namespace dvr {
 			}while(read_ready);
 		}
 	public:
-		FdStream(EventPoll& p, int fd, int flags, IStreamStateObserver& obsrv):
+		FdStream(EventPoll& p, int fd, int flags, StreamErrorOrValueCallback<IoStream, IoStreamState>&& obsrv):
 			IFdOwner(p, fd, flags, EPOLLIN | EPOLLOUT),
 			poll{p},
-			observer{obsrv},
+			observer{std::move(obsrv)},
 			is_broken{false},
 			write_ready{true},
 			already_written{0},
@@ -235,12 +239,14 @@ namespace dvr {
 			if( mask & EPOLLOUT ){
 				write_ready = true;
 				onReadyWrite();
-				observer.notify(*this, IoStreamState::WriteReady);
+				observer.set(*this, IoStreamState::WriteReady);
+				//observer.notify(*this, IoStreamState::WriteReady);
 			}
 			if( mask & EPOLLIN ){
 				read_ready = true;
 				onReadyRead();
-				observer.notify(*this, IoStreamState::ReadReady);
+				observer.set(*this, IoStreamState::ReadReady);
+				//observer.notify(*this, IoStreamState::ReadReady);
 			}
 		}
 
@@ -300,7 +306,8 @@ namespace dvr {
 			is_broken = true;
 			read_ready = false;
 			write_ready = false;
-			observer.notify(*this, IoStreamState::Broken);
+			observer.set(*this, IoStreamState::Broken);
+			//observer.notify(*this, IoStreamState::Broken);
 		}
 		bool broken() const {
 			return is_broken;
@@ -316,7 +323,7 @@ namespace dvr {
 		bind_address{unix_addr}
 	{}
 
-	std::unique_ptr<Server> UnixSocketAddress::listen(IServerStateObserver& obsrv){
+	std::unique_ptr<Server> UnixSocketAddress::listen(StreamErrorOrValueCallback<Server, Void>&& obsrv){
 		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
 		//TODO Missing errno check in every state
 
@@ -345,10 +352,10 @@ namespace dvr {
 
 		::listen(file_descriptor, SOMAXCONN);
 
-		return std::make_unique<Server>(poll, file_descriptor, bind_address, obsrv);
+		return std::make_unique<Server>(poll, file_descriptor, bind_address, std::move(obsrv));
 	}
 	
-	std::unique_ptr<IoStream> UnixSocketAddress::connect(IStreamStateObserver& obsrv){
+	std::unique_ptr<IoStream> UnixSocketAddress::connect(StreamErrorOrValueCallback<IoStream, IoStreamState>&& obsrv){
 		int file_descriptor = ::socket( AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0 );
 
 		if(file_descriptor < 0){
@@ -370,18 +377,18 @@ namespace dvr {
 			return nullptr;
 		}
 
-		return std::make_unique<FdStream>(poll, file_descriptor, 0, obsrv);
+		return std::make_unique<FdStream>(poll, file_descriptor, 0, std::move(obsrv));
 	}
 
 	/*
 	 * Based on EPoll notification accept, read or write in a non blocking way
 	 * and queue reads and/or handle writes
 	 */
-	Server::Server(EventPoll& p, int fd, const std::string& addr, IServerStateObserver& obs):
+	Server::Server(EventPoll& p, int fd, const std::string& addr, StreamErrorOrValueCallback<Server, Void>&& obs):
 		IFdOwner(p, fd, 0, EPOLLIN),
 		event_poll{p},
 		address{addr},
-		observer{obs}
+		observer{std::move(obs)}
 	{
 	}
 
@@ -391,11 +398,12 @@ namespace dvr {
 
 	void Server::notify(uint32_t mask){
 		if(mask & EPOLLIN){
-			observer.notify(*this, ServerState::Accept);
+			observer.set(*this, Void{});
+			// observer.notify(*this, ServerState::Accept);
 		}
 	}
 
-	std::unique_ptr<IoStream> Server::accept(IStreamStateObserver& obsrv){
+	std::unique_ptr<IoStream> Server::accept(StreamErrorOrValueCallback<IoStream,IoStreamState>&& obsrv){
 		struct ::sockaddr_storage addr;
 		socklen_t addr_len = sizeof(addr);
 
@@ -407,7 +415,7 @@ namespace dvr {
 			return nullptr;
 		}
 
-		return std::make_unique<FdStream>(event_poll, accepted_fd, 0, obsrv);
+		return std::make_unique<FdStream>(event_poll, accepted_fd, 0, std::move(obsrv));
 	}
 
 	const std::string& UnixSocketAddress::getPath()const{
@@ -439,12 +447,12 @@ namespace dvr {
 			return std::make_unique<UnixSocketAddress>(events, path);
 		}
 
-		std::unique_ptr<InputStream> wrapInputFd(int fd, IStreamStateObserver& obsrv, uint32_t flags = 0) override {
-			return std::make_unique<FdStream>(events, fd, flags, obsrv);
+		std::unique_ptr<InputStream> wrapInputFd(int fd, StreamErrorOrValueCallback<IoStream, IoStreamState>&& obsrv, uint32_t flags = 0) override {
+			return std::make_unique<FdStream>(events, fd, flags, std::move(obsrv));
 		}
 		
-		std::unique_ptr<OutputStream> wrapOutputFd(int fd, IStreamStateObserver& obsrv, uint32_t flags = 0) override {
-			return std::make_unique<FdStream>(events, fd, flags, obsrv);
+		std::unique_ptr<OutputStream> wrapOutputFd(int fd, StreamErrorOrValueCallback<IoStream, IoStreamState>&& obsrv, uint32_t flags = 0) override {
+			return std::make_unique<FdStream>(events, fd, flags, std::move(obsrv));
 		}
 	};
 
@@ -460,6 +468,10 @@ namespace dvr {
 
 	void WaitScope::poll(){
 		e_poll.poll();
+	}
+
+	void WaitScope::wait(std::chrono::steady_clock::duration duration){
+		e_poll.wait(duration);
 	}
 
 	AsyncIoContext setupAsyncIo(){

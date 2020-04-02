@@ -12,9 +12,20 @@ namespace dvr {
 		enum class Mode: uint8_t {
 			INVALID,
 			DAEMON,
-			STATUS
+			STATUS,
+			COMMAND,
+			ALIAS,
+			INTERACTIVE,
+			// Control states
+			START,
+			STOP,
+			ENABLE,
+			DISABLE
 		};
-		Devoured(bool act, int sta);
+		/*
+		 * Invalid state, because I am too lazy
+		 */
+		Devoured(bool act, int sta, Environment&& env);
 		virtual ~Devoured() = default;
 
 		int run();
@@ -22,6 +33,7 @@ namespace dvr {
 		bool active;
 		int status;
 	protected:
+		Environment environment;
 		AsyncIoContext io_context;
 
 		void stop();

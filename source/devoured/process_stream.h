@@ -30,7 +30,13 @@ namespace dvr {
 		 *	return the process id of the child
 		 */
 		int getPID() const;
+
+		/*
+		* kill or stop the process
+		*/
+		bool stop();
+		bool kill();
 	};
 
-	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, AsyncIoProvider& provider, IStreamStateObserver& obsrv);
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments, const std::string& working_directory, AsyncIoProvider& provider, StreamErrorOrValueCallback<IoStream, IoStreamState>&& obsrv);
 }

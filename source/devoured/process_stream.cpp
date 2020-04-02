@@ -1,7 +1,9 @@
 #include "process_stream.h"
 
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
+#include <signal.h>
 
 #include <iostream>
 
@@ -30,8 +32,18 @@ namespace dvr {
 	int ProcessStream::getPID() const {
 		return process_id;
 	}
+
+	bool ProcessStream::stop() {
+		int rv = ::kill(process_id, SIGTERM);
+		return rv < 0;
+	}
+
+	bool ProcessStream::kill() {
+		int rv = ::kill(process_id, SIGKILL);
+		return rv < 0;
+	}
 	
-	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, AsyncIoProvider& provider, IStreamStateObserver& observer){
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments, const std::string& working_directory, AsyncIoProvider& provider, StreamErrorOrValueCallback<IoStream,IoStreamState>&& observer){
 		std::unique_ptr<ProcessStream> process{nullptr};
 		int fds[3][2];
 
@@ -67,6 +79,10 @@ namespace dvr {
 				}
 			}
 		}else if( pid == 0 ){
+			int rc = chdir(working_directory.c_str());
+			if( rc < 0){
+				exit(1);
+			}
 			/* 
 			 * replaces all default streams with the following fds 
 			 * and closes the parent fds
@@ -83,15 +99,40 @@ namespace dvr {
 			// For SIGTERM handling etc
 			// 
 			// Or just keep a record of service information and create the process stream only when needed.
-			execlp("terraria", "terraria", NULL);
+			
+			std::vector<char*> arg_array;
+			// Fill argument array except for the front and back
+			
+			arg_array.reserve(arguments.size()+2);
+			arg_array.push_back(const_cast<char*>(exec_file.data()));
+			for(auto& arg : arguments){
+				arg_array.push_back(const_cast<char*>(arg.data()));
+			}
+			arg_array.push_back(nullptr);
+			
+			int rv = ::execvp(exec_file.data(), arg_array.data());
+
+			if(rv < 0){
+				for(uint8_t i = 0; i < 3; ++i){
+					close(fds[i][1]);
+				}
+			}
+			/*
+			 * If the creation of the environemnt fails, then just kill the child.
+			 */
+			exit(-1);
 		}else{
 			for(uint8_t i = 0; i < 3; ++i){
 				close(fds[i][1]);
 			}
 
-			auto in = provider.wrapOutputFd(fds[0][0], observer);
-			auto out = provider.wrapInputFd(fds[1][0], observer);
-			auto err = provider.wrapInputFd(fds[2][0], observer);
+			auto in_obsrv = std::move(observer);
+			auto out_obsrv = in_obsrv;
+			auto err_obsrv = in_obsrv;
+
+			auto in = provider.wrapOutputFd(fds[0][0], std::move(in_obsrv));
+			auto out = provider.wrapInputFd(fds[1][0], std::move(out_obsrv));
+			auto err = provider.wrapInputFd(fds[2][0], std::move(err_obsrv));
 
 			process = std::make_unique<ProcessStream>(exec_file, pid, std::move(in), std::move(out), std::move(err));
 		}
