@@ -19,7 +19,7 @@
 namespace fs = std::filesystem;
 
 namespace dvr {
-	class DaemonDevoured final : public Devoured, public IStreamStateObserver {
+	class DaemonDevoured final : public Devoured {
 	private:
 		std::map<Devoured::Mode, std::function<void(IoStream&,const MessageRequest&)>> request_handlers;
 		/*
@@ -172,7 +172,7 @@ namespace dvr {
     	{
 		}
     
-		void notify(IoStream& conn, IoStreamState state) override {
+		void notify(IoStream& conn, IoStreamState&& state) {
 			switch(state){
 				case IoStreamState::Broken:{
 					// connection_map.erase(conn.id());
@@ -213,6 +213,23 @@ namespace dvr {
 			setupControlInterface();
 		}
 
+		std::unique_ptr<IoStream> acceptConnection(Server& source){
+			return source.accept(StreamErrorOrValueCallback<IoStream, IoStreamState>{
+				std::function<void(IoStream&, const StreamError&)>{[this](IoStream& source, const StreamError& error){
+					if(error.isCritical()){
+						auto find = connection_map.find(source.id());
+						if( find != connection_map.end() ){
+							to_be_destroyed.push_back(std::move(find->second));
+							connection_map.erase(find);
+						}
+					}
+				}},
+				std::function<void(IoStream&, IoStreamState&&)>{[this](IoStream& source, IoStreamState&& value){
+					notify(source, std::move(value));
+				}}
+			});
+		}
+
 		void setupControlInterface(){
 			std::string sock_file = std::string{"default-"}+std::to_string(environment.userId());
 			auto sock_path = environment.tmpPath();
@@ -236,7 +253,7 @@ namespace dvr {
 				}},
 				std::function<void(Server&, Void&&)>{[this](Server& source, Void&& val){
 					(void)val;
-					auto connection = source.accept(*this);
+					auto connection = acceptConnection(source);
 					if( connection ){
 						int id = connection->id();
 						connection_map.insert(std::make_pair(id, std::move(connection)));
@@ -265,7 +282,7 @@ namespace dvr {
 		void loop()override{}
 	};
 
-	class ControlDevoured final : public Devoured, public IStreamStateObserver {
+	class ControlDevoured final : public Devoured {
 	private:
 		const Parameter parameters;
 		uint16_t req_id;
@@ -292,7 +309,18 @@ namespace dvr {
 				stop();
 				return;
 			}
-			connection = address->connect(*this);
+			connection = address->connect(StreamErrorOrValueCallback<IoStream, IoStreamState>{
+				std::function<void(IoStream&, const StreamError&)>{[this](IoStream& source, const StreamError& error){
+					(void) source;
+					if(error.isCritical()){
+						connection.reset();
+						stop();
+					}
+				}},
+				std::function<void(IoStream&, IoStreamState&&)>{[this](IoStream& source, IoStreamState&& value){
+					notify(source, std::move(value));
+				}}
+			});
 			MessageRequest msg{
 				0,
 				static_cast<uint8_t>(parameters.mode),
@@ -315,7 +343,7 @@ namespace dvr {
 			target{params.target.has_value()?(*params.target):""}
 		{}
 
-		void notify(IoStream& conn, IoStreamState state) override {
+		void notify(IoStream& conn, IoStreamState&& state) {
 			switch(state){
 				case IoStreamState::ReadReady:{
 					auto opt_msg = asyncReadResponse(conn);
@@ -343,7 +371,7 @@ namespace dvr {
 		}
 	};
 
-	class StatusDevoured final : public Devoured, public IStreamStateObserver {
+	class StatusDevoured final : public Devoured {
 	private:
 		uint16_t req_id;
 
@@ -358,7 +386,7 @@ namespace dvr {
 			target{params.target.has_value()?(*params.target):""}
 		{}
 
-		void notify(IoStream& conn, IoStreamState state) override {
+		void notify(IoStream& conn, IoStreamState state) {
 			switch(state){
 				case IoStreamState::ReadReady:{
 					auto opt_msg = asyncReadResponse(conn);
@@ -404,7 +432,18 @@ namespace dvr {
 				stop();
 				return;
 			}
-			connection = address->connect(*this);
+			connection = address->connect(StreamErrorOrValueCallback<IoStream,IoStreamState>{
+				std::function<void(IoStream&, const StreamError&)>{[this](IoStream& source, const StreamError& error){
+					(void) source;
+					if(error.isCritical()){
+						connection.reset();
+						stop();
+					}
+				}},
+				std::function<void(IoStream&, IoStreamState&&)>{[this](IoStream& source, IoStreamState&& value){
+					notify(source, std::move(value));
+				}}
+			});
 			MessageRequest msg{
 				0,
 				static_cast<uint8_t>(Devoured::Mode::STATUS),

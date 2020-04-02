@@ -30,18 +30,25 @@ namespace dvr {
 		}
 		state = State::ON;
 
-		process = createProcessStream(config.start_command, config.arguments, config.working_directory, provider, *this);
+		process = createProcessStream(config.start_command, config.arguments, config.working_directory, provider, 
+			StreamErrorOrValueCallback<IoStream, IoStreamState>{
+				std::function<void(IoStream&,const StreamError&)>{[this](IoStream& source, const StreamError& value){
+					// TODO Handle Error
+				}},
+				std::function<void(IoStream&,IoStreamState&&)>{[this](IoStream& source, IoStreamState&& value){
+					notify(source, std::move(value));
+				}}
+			}
+		);
 		if(!process){
 			state = State::TERMINATED;
 			return;
 		}
 	}
-
+	// TODO handle stop correctly
 	void Service::stop(){
 		if(process){
-			if(stop
 		}else{
-
 		}
 	}
 

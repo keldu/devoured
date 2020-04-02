@@ -43,7 +43,7 @@ namespace dvr {
 		return rv < 0;
 	}
 	
-	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments, const std::string& working_directory, AsyncIoProvider& provider, IStreamStateObserver& observer){
+	std::unique_ptr<ProcessStream> createProcessStream(const std::string& exec_file, const std::vector<std::string>& arguments, const std::string& working_directory, AsyncIoProvider& provider, StreamErrorOrValueCallback<IoStream,IoStreamState>&& observer){
 		std::unique_ptr<ProcessStream> process{nullptr};
 		int fds[3][2];
 
@@ -126,9 +126,13 @@ namespace dvr {
 				close(fds[i][1]);
 			}
 
-			auto in = provider.wrapOutputFd(fds[0][0], observer);
-			auto out = provider.wrapInputFd(fds[1][0], observer);
-			auto err = provider.wrapInputFd(fds[2][0], observer);
+			auto in_obsrv = std::move(observer);
+			auto out_obsrv = in_obsrv;
+			auto err_obsrv = in_obsrv;
+
+			auto in = provider.wrapOutputFd(fds[0][0], std::move(in_obsrv));
+			auto out = provider.wrapInputFd(fds[1][0], std::move(out_obsrv));
+			auto err = provider.wrapInputFd(fds[2][0], std::move(err_obsrv));
 
 			process = std::make_unique<ProcessStream>(exec_file, pid, std::move(in), std::move(out), std::move(err));
 		}

@@ -14,7 +14,7 @@
 namespace fs = std::filesystem;
 
 namespace dvr {
-	class Service : public IStreamStateObserver{
+	class Service {
 	private:
 		enum class State : uint8_t {
 			ON,
@@ -41,7 +41,7 @@ namespace dvr {
 		void start();
 		void stop();
 
-		void notify(IoStream& conn, IoStreamState state) override {
+		void notify(IoStream& conn, IoStreamState state) {
 			std::cout<<"Program doing sth"<<std::endl;
 		}
 	};
