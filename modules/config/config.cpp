@@ -69,25 +69,35 @@ namespace dvr{
 			/*
 			* Split the start command into the proper format
 			*/
-			std::string command = table->get_as<std::string>("Start").value_or("");
-			std::stringstream ss{command};
-			std::string token;
-			char delimiter = ' ';
-			if(std::getline(ss, token, delimiter)){
-				config.start_command = token;
-				while(std::getline(ss, token, delimiter)){
-					config.arguments.push_back(token);
+			{
+				std::string command = table->get_as<std::string>("Start").value_or("");
+				std::stringstream ss{command};
+				std::string token;
+				char delimiter = ' ';
+				if(std::getline(ss, token, delimiter)){
+					config.start.path = token;
+					while(std::getline(ss, token, delimiter)){
+						config.start.arguments.push_back(token);
+					}
+				}else{
+					std::cerr<<"No command was set"<<std::endl;
+					return false;
 				}
-			}else{
-				std::cerr<<"No command was set"<<std::endl;
-				return false;
 			}
-
-			auto stop_opt = table->get_as<std::string>("Stop");
-			if(stop_opt){
-				config.stop_command = *stop_opt;
-			}else{
-				config.stop_command = std::nullopt;
+			/*
+			* Split stop command if it exists into a proper format
+			*/
+			{
+				char delimiter = ' ';
+				auto stop_opt = table->get_as<std::string>("Stop");
+				if(stop_opt){
+					std:: string command = *stop_opt;
+					config.stop.path = *stop_opt;
+					std::stringstream ss{command};
+					std::string token;
+				}else{
+					config.stop = std::nullopt;
+				}
 			}
 		}
 		return true;

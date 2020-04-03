@@ -30,17 +30,12 @@ namespace dvr {
 		/*
 		 * Command to start binary
 		 */
-		std::string start_command;
-		
-		/*
-		 * Arguments to be used
-		 */
-		std::vector<std::string> arguments;
+		Command start;
 		
 		/*
 		 * Stop command
 		 */
-		std::optional<std::string> stop_command = std::nullopt;
+		std::optional<Command> stop = std::nullopt;
 		
 		/*
 		* Stop arguments
