@@ -30,7 +30,7 @@ namespace dvr {
 		}
 		state = State::ON;
 
-		process = createProcessStream(config.start_command, config.arguments, config.working_directory, provider, 
+		process = createProcessStream(config.start.path, config.start.arguments, config.working_directory, provider, 
 			StreamErrorOrValueCallback<IoStream, IoStreamState>{
 				std::function<void(IoStream&,const StreamError&)>{[this](IoStream& source, const StreamError& value){
 					// TODO Handle Error
@@ -48,6 +48,23 @@ namespace dvr {
 	// TODO handle stop correctly
 	void Service::stop(){
 		if(process){
+			if(config.stop){
+				// TODO add command execution.
+				// Don't do anything yet
+			}else{
+			switch(state){
+				case State::TERMINATED:
+					process->kill();
+					break;
+				case State::ON:
+					process->stop();
+					state = State::TERMINATED;
+					break;
+				case State::OFF:
+					// Nothing to do here
+					break;
+				}
+			}
 		}else{
 		}
 	}

@@ -84,17 +84,28 @@ namespace dvr{
 					return false;
 				}
 			}
+			// TODO create multiple stop alternatives. E.g. kill() / command with execve / command through the minecraft pipe
 			/*
 			* Split stop command if it exists into a proper format
 			*/
 			{
-				char delimiter = ' ';
 				auto stop_opt = table->get_as<std::string>("Stop");
 				if(stop_opt){
+					Command stop_cmd;
 					std:: string command = *stop_opt;
-					config.stop.path = *stop_opt;
+					char delimiter = ' ';
 					std::stringstream ss{command};
 					std::string token;
+					if(std::getline(ss, token, delimiter)){
+						stop_cmd.path = token;
+						while(std::getline(ss, token, delimiter)){
+							stop_cmd.arguments.push_back(token);
+						}
+					}else{
+						std::cerr<<"No command was set"<<std::endl;
+						return false;
+					}
+					config.stop = stop_cmd;
 				}else{
 					config.stop = std::nullopt;
 				}
