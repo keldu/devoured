@@ -33,7 +33,7 @@ namespace dvr{
 
 		std::shared_ptr<cpptoml::table> toml_table;
 		try {
-			toml_table =  cpptoml::parse_file(fs::absolute(config_path).string());
+			toml_table =  cpptoml::parse_file(config_path.string());
 		}catch(std::exception& e){
 			std::cerr<<"No config file found at "<<path<<". Consider creating one."<<std::endl;
 			return false;

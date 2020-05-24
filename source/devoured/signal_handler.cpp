@@ -1,6 +1,6 @@
 #include "signal_handler.h"
 
-#include <signal.h>
+#include <sys/signal.h>
 
 volatile sig_atomic_t shutdown_status = 0;
 
