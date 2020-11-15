@@ -1,18 +1,18 @@
-#!/usr/bin/env python3
+#!/bin/false
+
+import os
+import os.path
+import glob
+
 
 Import('env')
 
-env.objects = []
-env.sources = []
-env.headers = []
+dir_path = Dir('.').abspath
 
-# hdr_list = ['process_stream.h', 'network.h','devoured.h','signal_handler.h']
-# src_list = ['process_stream.cpp', 'network.cpp', 'devoured.cpp', 'signal_handler.cpp','protocol.cpp']
-
-SConscript('network/SConscript')
-SConscript('devoured/SConscript')
+env.sources += sorted(glob.glob(dir_path + "/*.cpp"))
+env.headers += sorted(glob.glob(dir_path + "/*.h"))
 
 env.add_source_files(env.objects, env.sources)
 
-#lib = env.add_library("core", env.core_sources)
-#env.Prepend(LIBS=[lib])
+env.devoured = env.Program('#bin/devoured', env.objects)
+env.Default(env.devoured)
